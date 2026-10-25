@@ -1,15 +1,20 @@
 {
   "expo": {
-    "name": "tennis_line_caller",
+    "name": "Owl Vision",
     "slug": "tennis_line_caller",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "Owlvision",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.owlvision.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -20,6 +25,22 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Allow $(PRODUCT_NAME) to access your camera for tennis ball tracking.",
+          "enableFrameProcessors": true,
+          "microphonePermissionText": "Allow $(PRODUCT_NAME) to record audio during match capture."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c26f0a40-e97e-4264-9d87-ce7e48488479"
+      }
     }
   }
 }
