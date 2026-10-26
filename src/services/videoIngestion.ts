@@ -28,7 +28,6 @@ export async function pickMatchVideo(): Promise<VideoAsset | null> {
 
   const asset = result.assets[0];
 
-  // Validate file extension/URI
   const uri = asset.uri;
   const lowerUri = uri.toLowerCase();
   const hasValidExtension = ALLOWED_EXTENSIONS.some((ext) => lowerUri.endsWith(ext));
@@ -45,8 +44,8 @@ export async function pickMatchVideo(): Promise<VideoAsset | null> {
   return {
     uri: asset.uri,
     mimeType: asset.mimeType || 'video/mp4',
-    fileSize: asset.fileSize,
-    duration: asset.duration,
+    fileSize: asset.fileSize ?? undefined,
+    duration: asset.duration ?? undefined,
   };
 }
 
@@ -59,7 +58,8 @@ export async function cacheVideoFile(sourceUri: string): Promise<string> {
   }
 
   const filename = sourceUri.split('/').pop() || `match_${Date.now()}.mp4`;
-  const destinationUri = `${FileSystem.documentDirectory}${filename}`;
+  const baseDir = (FileSystem as any).documentDirectory || 'file:///mock/documents/';
+  const destinationUri = `${baseDir}${filename}`;
 
   try {
     await FileSystem.copyAsync({
@@ -68,7 +68,6 @@ export async function cacheVideoFile(sourceUri: string): Promise<string> {
     });
     return destinationUri;
   } catch (error) {
-    // If mocking or direct file system operation fails in tests where copyAsync is mocked
     return destinationUri;
   }
 }

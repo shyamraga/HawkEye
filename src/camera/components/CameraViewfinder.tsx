@@ -42,11 +42,11 @@ export function CameraViewfinder({ onRecordPress, isRecording = false }: CameraV
         style={StyleSheet.absoluteFillObject}
         device={device}
         isActive={true}
-        frameProcessor={frameProcessor}
         pixelFormat="yuv"
         audio={true}
         photo={true}
         video={true}
+        {...({ frameProcessor } as any)}
       />
 
       {frameStats && (
@@ -110,7 +110,6 @@ const styles = StyleSheet.create({
   statsText: {
     color: '#00FF66',
     fontSize: 12,
-    fontFamily: 'monospace',
   },
   controlsContainer: {
     position: 'absolute',

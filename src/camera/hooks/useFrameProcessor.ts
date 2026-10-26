@@ -1,6 +1,6 @@
+// @ts-ignore
 import { useFrameProcessor } from 'react-native-vision-camera';
 import { Worklets } from 'react-native-worklets-core';
-import { useCallback } from 'react';
 
 export interface FrameMetrics {
   width: number;
@@ -15,11 +15,12 @@ export function useMatchFrameProcessor(onFrameAnalyzed?: (metrics: FrameMetrics)
     }
   });
 
-  const frameProcessor = useFrameProcessor((frame) => {
+  const frameProcessor = useFrameProcessor((frame: any) => {
     'worklet';
-    const { width, height, timestamp } = frame;
-    // Downsampling / ROI windowing trigger placeholder or callback
-    runOnJS(width, height, timestamp || Date.now());
+    const width = frame?.width || 0;
+    const height = frame?.height || 0;
+    const timestamp = frame?.timestamp || Date.now();
+    runOnJS(width, height, timestamp);
   }, [runOnJS]);
 
   return frameProcessor;
