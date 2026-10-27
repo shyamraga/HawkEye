@@ -15,6 +15,10 @@
     },
     "android": {
       "package": "com.owlvision.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -29,18 +33,18 @@
     "plugins": [
       "expo-sqlite",
       [
-        "react-native-vision-camera",
+        "expo-camera",
         {
-          "cameraPermissionText": "Allow $(PRODUCT_NAME) to access your camera for tennis ball tracking.",
-          "enableFrameProcessors": true,
-          "microphonePermissionText": "Allow $(PRODUCT_NAME) to record audio during match capture."
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for tennis ball tracking and court calibration.",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to record audio."
         }
       ]
     ],
     "extra": {
       "eas": {
-        "projectId": "c26f0a40-e97e-4264-9d87-ce7e48488479"
+        "projectId": "36ae2e97-c693-4cb0-8b84-f0bb708ccca6"
       }
-    }
+    },
+    "owner": "shyambravo"
   }
 }
