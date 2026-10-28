@@ -600,6 +600,170 @@ export default function App() {
                   <View style={styles.progressContainer}>
                     <View style={[styles.progressStep, wizardStep >= 1 && styles.progressStepActive]} />
                     <View style={[styles.progressStep, wizardStep >= 2 && styles.progressStepActive]} />
+                  </View>
+                  <Text style={styles.stepIndicatorText}>Step {wizardStep} of 2</Text>
+
+                  {/* Step Contents */}
+                  {wizardStep === 1 && (
+                    <ScrollView style={styles.wizardStepContent} contentContainerStyle={{ paddingBottom: 16 }}>
+                      <Text style={styles.wizardStepTitle}>Match Setup & Players</Text>
+                      <Text style={styles.wizardStepDesc}>Choose match type and enter player names.</Text>
+
+                      <View style={styles.wizardTypeRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.wizardTypeCard,
+                            matchMode === 'singles' && styles.wizardTypeCardActive
+                          ]}
+                          onPress={() => setMatchMode('singles')}
+                        >
+                          <User size={28} color={matchMode === 'singles' ? COLORS.primary : COLORS.textSecondary} />
+                          <Text style={[styles.wizardTypeTitle, matchMode === 'singles' && styles.wizardTypeTitleActive]}>SINGLES</Text>
+                          <Text style={styles.wizardTypeDesc}>1 vs 1</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.wizardTypeCard,
+                            matchMode === 'doubles' && styles.wizardTypeCardActive
+                          ]}
+                          onPress={() => setMatchMode('doubles')}
+                        >
+                          <Users size={28} color={matchMode === 'doubles' ? COLORS.primary : COLORS.textSecondary} />
+                          <Text style={[styles.wizardTypeTitle, matchMode === 'doubles' && styles.wizardTypeTitleActive]}>DOUBLES</Text>
+                          <Text style={styles.wizardTypeDesc}>2 vs 2</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {matchMode === 'singles' ? (
+                        <View style={{ marginTop: 16 }}>
+                          <Text style={styles.wizardInputLabel}>PLAYER ONE (SERVER)</Text>
+                          <TextInput
+                            style={styles.wizardInput}
+                            value={playerOne}
+                            onChangeText={setPlayerOne}
+                            placeholderTextColor={COLORS.textSecondary}
+                            placeholder="Enter Name"
+                          />
+
+                          <Text style={styles.wizardInputLabel}>PLAYER TWO (RECEIVER)</Text>
+                          <TextInput
+                            style={styles.wizardInput}
+                            value={playerTwo}
+                            onChangeText={setPlayerTwo}
+                            placeholderTextColor={COLORS.textSecondary}
+                            placeholder="Enter Name"
+                          />
+                        </View>
+                      ) : (
+                        <View style={{ marginTop: 16 }}>
+                          <Text style={styles.wizardInputGroupLabel}>TEAM A</Text>
+                          <Text style={styles.wizardInputLabel}>PLAYER 1 (SERVER)</Text>
+                          <TextInput
+                            style={styles.wizardInput}
+                            value={playerOne}
+                            onChangeText={setPlayerOne}
+                            placeholderTextColor={COLORS.textSecondary}
+                            placeholder="Enter Name"
+                          />
+                          <Text style={styles.wizardInputLabel}>PLAYER 2</Text>
+                          <TextInput
+                            style={styles.wizardInput}
+                            value={playerTwo}
+                            onChangeText={setPlayerTwo}
+                            placeholderTextColor={COLORS.textSecondary}
+                            placeholder="Enter Name"
+                          />
+
+                          <Text style={[styles.wizardInputGroupLabel, { marginTop: 12 }]}>TEAM B</Text>
+                          <Text style={styles.wizardInputLabel}>PLAYER 1 (RECEIVER)</Text>
+                          <TextInput
+                            style={styles.wizardInput}
+                            value={playerThree}
+                            onChangeText={setPlayerThree}
+                            placeholderTextColor={COLORS.textSecondary}
+                            placeholder="Enter Name"
+                          />
+                          <Text style={styles.wizardInputLabel}>PLAYER 2</Text>
+                          <TextInput
+                            style={styles.wizardInput}
+                            value={playerFour}
+                            onChangeText={setPlayerFour}
+                            placeholderTextColor={COLORS.textSecondary}
+                            placeholder="Enter Name"
+                          />
+                        </View>
+                      )}
+                    </ScrollView>
+                  )}
+
+                  {wizardStep === 2 && (
+                    <View style={styles.wizardStepContent}>
+                      <Text style={styles.wizardStepTitle}>Court Surface</Text>
+                      <Text style={styles.wizardStepDesc}>Choose playing surface for ball bounce calculation.</Text>
+
+                      <View style={styles.wizardSurfaceRow}>
+                        {['Hard', 'Clay', 'Grass'].map(surface => (
+                          <TouchableOpacity
+                            key={surface}
+                            style={[
+                              styles.wizardSurfaceBtn,
+                              courtSurface === surface && styles.wizardSurfaceBtnActive,
+                            ]}
+                            onPress={() => setCourtSurface(surface)}
+                          >
+                            <Text
+                              style={[
+                                styles.wizardSurfaceBtnText,
+                                courtSurface === surface && styles.wizardSurfaceBtnTextActive,
+                              ]}
+                            >
+                              {surface.toUpperCase()}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Wizard Footer Controls */}
+                  <View style={styles.wizardFooter}>
+                    {wizardStep > 1 ? (
+                      <TouchableOpacity
+                        style={styles.wizardBackBtn}
+                        onPress={() => setWizardStep(prev => prev - 1)}
+                      >
+                        <Text style={styles.wizardBackBtnText}>BACK</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.wizardBackBtn}
+                        onPress={() => setShowSetupWizard(false)}
+                      >
+                        <Text style={styles.wizardBackBtnText}>CANCEL</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {wizardStep < 2 ? (
+                      <TouchableOpacity
+                        style={styles.wizardNextBtn}
+                        onPress={() => setWizardStep(prev => prev + 1)}
+                      >
+                        <Text style={styles.wizardNextBtnText}>NEXT</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.wizardStartBtn}
+                        onPress={handleStartMatch}
+                      >
+                        <Camera size={16} color="#000" style={{ marginRight: 6 }} />
+                        <Text style={styles.wizardStartBtnText}>CALIBRATE COURT</Text>
+                      </TouchableOpacity>
+                    )}
+                  end_string:                  {/* Progress Indicator */}
+                  <View style={styles.progressContainer}>
+                    <View style={[styles.progressStep, wizardStep >= 1 && styles.progressStepActive]} />
+                    <View style={[styles.progressStep, wizardStep >= 2 && styles.progressStepActive]} />
                     <View style={[styles.progressStep, wizardStep >= 3 && styles.progressStepActive]} />
                   </View>
                   <Text style={styles.stepIndicatorText}>Step {wizardStep} of 3</Text>
