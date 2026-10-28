@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useMatchFrameProcessor, FrameMetrics } from '../hooks/useFrameProcessor';
 
 export interface CameraViewfinderProps {
@@ -9,15 +9,14 @@ export interface CameraViewfinderProps {
 }
 
 export function CameraViewfinder({ onRecordPress, isRecording = false }: CameraViewfinderProps) {
-  const { hasPermission, requestPermission } = useCameraPermission();
-  const device = useCameraDevice('back');
+  const [permission, requestPermission] = useCameraPermissions();
   const [frameStats, setFrameStats] = useState<FrameMetrics | null>(null);
 
   const frameProcessor = useMatchFrameProcessor((metrics) => {
     setFrameStats(metrics);
   });
 
-  if (!hasPermission) {
+  if (!permission?.granted) {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.text}>Camera permission is required for tennis match recording.</Text>
@@ -28,25 +27,11 @@ export function CameraViewfinder({ onRecordPress, isRecording = false }: CameraV
     );
   }
 
-  if (!device) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.text}>No back camera device found on this device.</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <Camera
+      <CameraView
         style={StyleSheet.absoluteFillObject}
-        device={device}
-        isActive={true}
-        pixelFormat="yuv"
-        audio={true}
-        photo={true}
-        video={true}
-        {...({ frameProcessor } as any)}
+        facing="back"
       />
 
       {frameStats && (

@@ -1,15 +1,5 @@
 import { useMatchFrameProcessor } from '../hooks/useFrameProcessor';
 
-jest.mock('react-native-vision-camera', () => ({
-  useFrameProcessor: (callback: any) => callback,
-}));
-
-jest.mock('react-native-worklets-core', () => ({
-  Worklets: {
-    createRunOnJS: (fn: any) => fn,
-  },
-}));
-
 describe('Frame Processor Hook (CAM-02)', () => {
   test('useMatchFrameProcessor returns a valid frame processor function', () => {
     const callback = jest.fn();
