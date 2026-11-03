@@ -36,6 +36,9 @@ import {
   Timer,
   Zap,
   Sparkles,
+  Video,
+  Eye,
+  Layers,
 } from 'lucide-react-native';
 
 import {
@@ -60,6 +63,7 @@ import { TennisScoringEngine, TennisScoreState } from './src/services/tennisScor
 import { SpeedRadarEngine, SpeedTelemetry } from './src/services/speedRadarEngine';
 import { HawkEyeChalkVisualizer } from './src/decision/components/HawkEyeChalkVisualizer';
 import { HawkEyeChallengeModal } from './src/decision/components/HawkEyeChallengeModal';
+import { SlowMoBallZoomPlayer } from './src/replay/components/SlowMoBallZoomPlayer';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -209,6 +213,7 @@ export default function App() {
     offsetMm: number;
   } | null>(DEMO_IN_BOUNCE);
   const [replayIndex, setReplayIndex] = useState(15);
+  const [replayViewMode, setReplayViewMode] = useState<'ballZoom' | 'chalk' | 'both'>('ballZoom');
 
   // Match Statistics Counter
   const [matchStats, setMatchStats] = useState({
@@ -617,6 +622,31 @@ export default function App() {
                   <Sparkles size={16} color={THEME.colors.tennisVolt} />
                   <Text style={styles.sectionTitle}>ALL TENNIS PRO FEATURES</Text>
                 </View>
+
+                {/* Feature 0: Slow-Motion Ball Zoom Replay (240 FPS) */}
+                <TouchableOpacity
+                  style={[styles.featureShowcaseCard, { borderColor: THEME.colors.tennisVolt }]}
+                  onPress={() => {
+                    setReplayViewMode('ballZoom');
+                    setCurrentPage('REPLAY');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(204, 255, 0, 0.15)' }]}>
+                    <Video size={22} color={THEME.colors.tennisVolt} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.featureHeaderRow}>
+                      <Text style={styles.featureTitle}>Slow-Motion Ball Zoom Replay</Text>
+                      <View style={styles.badgeVolt}>
+                        <Text style={styles.badgeVoltText}>240 FPS</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.featureDesc}>
+                      Dynamic camera zoom tracking the ball into the line with slow-mo (0.25x), ball compression & chalk explosion.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
 
                 {/* Feature 1: Hawk-Eye Chalk Line Zoom */}
                 <TouchableOpacity
@@ -1268,6 +1298,18 @@ export default function App() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
+                  style={[styles.simActionBtn, { borderColor: THEME.colors.tennisVolt, backgroundColor: 'rgba(204, 255, 0, 0.15)' }]}
+                  onPress={() => {
+                    setReplayViewMode('ballZoom');
+                    setCurrentPage('REPLAY');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Video size={14} color={THEME.colors.tennisVolt} style={{ marginRight: 4 }} />
+                  <Text style={[styles.simActionBtnText, { color: THEME.colors.tennisVolt }]}>SLOW-MO REPLAY</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   style={[styles.simActionBtn, { borderColor: THEME.colors.purpleAccent, backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}
                   onPress={() => handleOpenChallenge(1)}
                   activeOpacity={0.8}
@@ -1283,6 +1325,39 @@ export default function App() {
         {/* ===================== REPLAY / HAWK-EYE SCREEN ===================== */}
         {currentPage === 'REPLAY' && (
           <ScrollView style={styles.replayScroll} contentContainerStyle={{ padding: THEME.spacing.md, paddingBottom: 80 }}>
+            {/* Broadcast View Mode Switcher: Ball Zoom vs Chalk vs Split */}
+            <View style={styles.replayViewSwitcher}>
+              <TouchableOpacity
+                style={[styles.replayViewSwitchBtn, replayViewMode === 'ballZoom' && styles.replayViewSwitchBtnActive]}
+                onPress={() => setReplayViewMode('ballZoom')}
+              >
+                <Video size={14} color={replayViewMode === 'ballZoom' ? '#070A11' : THEME.colors.textSecondary} />
+                <Text style={[styles.replayViewSwitchText, replayViewMode === 'ballZoom' && styles.replayViewSwitchTextActive]}>
+                  BALL ZOOM CAM
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.replayViewSwitchBtn, replayViewMode === 'chalk' && styles.replayViewSwitchBtnActive]}
+                onPress={() => setReplayViewMode('chalk')}
+              >
+                <Eye size={14} color={replayViewMode === 'chalk' ? '#070A11' : THEME.colors.textSecondary} />
+                <Text style={[styles.replayViewSwitchText, replayViewMode === 'chalk' && styles.replayViewSwitchTextActive]}>
+                  CHALK LINE
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.replayViewSwitchBtn, replayViewMode === 'both' && styles.replayViewSwitchBtnActive]}
+                onPress={() => setReplayViewMode('both')}
+              >
+                <Layers size={14} color={replayViewMode === 'both' ? '#070A11' : THEME.colors.textSecondary} />
+                <Text style={[styles.replayViewSwitchText, replayViewMode === 'both' && styles.replayViewSwitchTextActive]}>
+                  SPLIT VIEW
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Surface & Decision Quick Switcher */}
             <View style={styles.replayToolbar}>
               <View style={styles.replaySurfaceTabs}>
@@ -1329,8 +1404,18 @@ export default function App() {
               </View>
             </View>
 
-            {/* Hawk-Eye Sub-Millimeter Chalk Visualizer */}
-            {replayBounce && (
+            {/* 🎥 SLOW-MOTION BALL ZOOM CAMERA PLAYER */}
+            {(replayViewMode === 'ballZoom' || replayViewMode === 'both') && (
+              <SlowMoBallZoomPlayer
+                trajectory={replayTrajectory}
+                bouncePoint={replayBounce}
+                courtSurface={courtSurface as any}
+                autoPlay={true}
+              />
+            )}
+
+            {/* 🔬 HAWK-EYE SUB-MILLIMETER CHALK VISUALIZER */}
+            {(replayViewMode === 'chalk' || replayViewMode === 'both') && replayBounce && (
               <HawkEyeChalkVisualizer
                 decision={replayBounce.decision}
                 offsetMm={replayBounce.offsetMm}
@@ -1339,53 +1424,15 @@ export default function App() {
               />
             )}
 
-            {/* Frame-by-Frame Trajectory Scrubber */}
-            <View style={styles.scrubberCard}>
-              <View style={styles.scrubberHeader}>
-                <Text style={styles.scrubberTitle}>TRAJECTORY ARC SCRUBBER</Text>
-                <Text style={styles.scrubberCount}>
-                  Frame {replayIndex + 1} / {replayTrajectory.length}
-                </Text>
-              </View>
-
-              <View style={styles.sliderTrack}>
-                <View
-                  style={[
-                    styles.sliderFill,
-                    { width: `${(replayIndex / Math.max(1, replayTrajectory.length - 1)) * 100}%` },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.sliderThumb,
-                    { left: `${(replayIndex / Math.max(1, replayTrajectory.length - 1)) * 95}%` },
-                  ]}
-                />
-              </View>
-
-              <View style={styles.scrubButtons}>
-                <TouchableOpacity
-                  style={styles.scrubBtn}
-                  onPress={() => setReplayIndex(prev => Math.max(0, prev - 1))}
-                >
-                  <Text style={styles.scrubBtnText}>◀ PREV FRAME</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.scrubBtn, { backgroundColor: THEME.colors.purpleAccent }]}
-                  onPress={() => setChallengeModalVisible(true)}
-                >
-                  <Text style={[styles.scrubBtnText, { color: '#FFFFFF' }]}>FULL CHALLENGE REVIEW</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.scrubBtn}
-                  onPress={() => setReplayIndex(prev => Math.min(replayTrajectory.length - 1, prev + 1))}
-                >
-                  <Text style={styles.scrubBtnText}>NEXT FRAME ▶</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            {/* Official Challenge Review CTA */}
+            <TouchableOpacity
+              style={styles.fullChallengeCta}
+              onPress={() => setChallengeModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <ShieldAlert size={20} color="#FFFFFF" />
+              <Text style={styles.fullChallengeCtaText}>OPEN PLAYER CHALLENGE REVIEW</Text>
+            </TouchableOpacity>
 
             {/* Speed Radar Snapshot Card */}
             <View style={styles.radarCard}>
@@ -2190,6 +2237,56 @@ const styles = StyleSheet.create({
   },
   replayScroll: {
     flex: 1,
+  },
+  replayViewSwitcher: {
+    flexDirection: 'row',
+    backgroundColor: THEME.colors.surface,
+    padding: 4,
+    borderRadius: THEME.radius.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+    marginBottom: THEME.spacing.md,
+    gap: 6,
+  },
+  replayViewSwitchBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: THEME.radius.sm,
+  },
+  replayViewSwitchBtnActive: {
+    backgroundColor: THEME.colors.tennisVolt,
+  },
+  replayViewSwitchText: {
+    color: THEME.colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  replayViewSwitchTextActive: {
+    color: '#070A11',
+  },
+  fullChallengeCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: THEME.radius.md,
+    marginVertical: THEME.spacing.md,
+    shadowColor: THEME.colors.purpleAccent,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  fullChallengeCtaText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.6,
   },
   replayToolbar: {
     flexDirection: 'row',

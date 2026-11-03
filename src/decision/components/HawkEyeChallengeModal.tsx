@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { ShieldAlert, CheckCircle, XCircle } from 'lucide-react-native';
+import { ShieldAlert, CheckCircle, XCircle, Video, Eye } from 'lucide-react-native';
 import { THEME } from '../../theme/theme';
 import { HawkEyeChalkVisualizer } from './HawkEyeChalkVisualizer';
+import { SlowMoBallZoomPlayer } from '../../replay/components/SlowMoBallZoomPlayer';
 
 interface HawkEyeChallengeModalProps {
   visible: boolean;
@@ -31,6 +32,7 @@ export const HawkEyeChallengeModal: React.FC<HawkEyeChallengeModalProps> = ({
   onDismiss,
   onApplyRuling,
 }) => {
+  const [reviewMode, setReviewMode] = useState<'slowmo' | 'chalk'>('slowmo');
   const isIn = decision === 'IN';
   const accentColor = isIn ? THEME.colors.neonGreen : THEME.colors.neonRed;
 
@@ -86,14 +88,48 @@ export const HawkEyeChallengeModal: React.FC<HawkEyeChallengeModalProps> = ({
             </View>
           </View>
 
+          {/* Mode Switcher: Slow-Mo Ball Zoom vs Chalk Line */}
+          <View style={styles.reviewTabRow}>
+            <TouchableOpacity
+              style={[styles.reviewTabBtn, reviewMode === 'slowmo' && styles.reviewTabBtnActive]}
+              onPress={() => setReviewMode('slowmo')}
+            >
+              <Video size={14} color={reviewMode === 'slowmo' ? '#070A11' : THEME.colors.textSecondary} />
+              <Text style={[styles.reviewTabText, reviewMode === 'slowmo' && styles.reviewTabTextActive]}>
+                SLOW-MO BALL ZOOM
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.reviewTabBtn, reviewMode === 'chalk' && styles.reviewTabBtnActive]}
+              onPress={() => setReviewMode('chalk')}
+            >
+              <Eye size={14} color={reviewMode === 'chalk' ? '#070A11' : THEME.colors.textSecondary} />
+              <Text style={[styles.reviewTabText, reviewMode === 'chalk' && styles.reviewTabTextActive]}>
+                CHALK CROSS-SECTION
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Zoomed Impact Canvas */}
-          <HawkEyeChalkVisualizer
-            decision={decision}
-            offsetMm={offsetMm}
-            courtSurface={courtSurface}
-            reviewedByPlayer={challengingPlayer}
-            isChallengeMode={true}
-          />
+          {reviewMode === 'slowmo' ? (
+            <SlowMoBallZoomPlayer
+              bouncePoint={{
+                decision,
+                offsetMm,
+              }}
+              courtSurface={courtSurface as any}
+              height={280}
+            />
+          ) : (
+            <HawkEyeChalkVisualizer
+              decision={decision}
+              offsetMm={offsetMm}
+              courtSurface={courtSurface}
+              reviewedByPlayer={challengingPlayer}
+              isChallengeMode={true}
+            />
+          )}
 
           {/* Call Verdict Box */}
           <View style={[styles.verdictBox, { borderColor: accentColor }]}>
@@ -209,6 +245,35 @@ const styles = StyleSheet.create({
     color: THEME.colors.textMuted,
     fontSize: 10,
     fontWeight: '800',
+  },
+  reviewTabRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginVertical: 10,
+    backgroundColor: THEME.colors.surfaceElevated,
+    padding: 4,
+    borderRadius: THEME.radius.md,
+  },
+  reviewTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: THEME.radius.sm,
+  },
+  reviewTabBtnActive: {
+    backgroundColor: THEME.colors.tennisVolt,
+  },
+  reviewTabText: {
+    color: THEME.colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  reviewTabTextActive: {
+    color: '#070A11',
   },
   verdictBox: {
     flexDirection: 'row',
