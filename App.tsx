@@ -281,7 +281,7 @@ export default function App() {
     const matchId = `match_${Date.now()}`;
     const p1 = matchMode === 'singles' ? playerOne : `${playerOne} & ${playerTwo}`;
     const p2 = matchMode === 'singles' ? playerTwo : `${playerThree} & ${playerFour}`;
-    
+
     const newMatch: MatchRecord = {
       id: matchId,
       playerOne: p1,
@@ -291,27 +291,27 @@ export default function App() {
       durationSeconds: 0,
       courtSurface,
     };
-    
+
+    // Immediate UI transition to ensure zero tap lag on mobile
+    setActiveMatchId(matchId);
+    setMatchStats({
+      totalShots: 0,
+      totalCalls: 0,
+      inCount: 0,
+      outCount: 0,
+      avgSpeedKmh: 115 + Math.round(Math.random() * 30),
+      rallyLengths: [],
+    });
+    setShowSetupWizard(false);
+    setWizardStep(1);
+    setCurrentPage('CALIBRATE');
+
     try {
       await saveMatch(newMatch);
-      setActiveMatchId(matchId);
-      setMatchStats({
-        totalShots: 0,
-        totalCalls: 0,
-        inCount: 0,
-        outCount: 0,
-        avgSpeedKmh: 115 + Math.round(Math.random() * 30),
-        rallyLengths: [],
-      });
-      setShowSetupWizard(false);
-      setWizardStep(1);
-      // Fetch matches to update the list in background
       const list = await getRecentMatches();
       setRecentMatches(list);
-      // Force calibration first
-      setCurrentPage('CALIBRATE');
     } catch (err: any) {
-      Alert.alert("Database Error", "Failed to create match: " + (err?.message || String(err)));
+      console.warn("Background match save warning:", err?.message || String(err));
     }
   };
 
