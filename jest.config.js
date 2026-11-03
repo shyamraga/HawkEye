@@ -14,6 +14,7 @@ module.exports = {
   moduleNameMapper: {
     '^test-renderer$': 'react-test-renderer',
     '^react-native-svg$': '<rootDir>/src/calibration/__tests__/__mocks__/react-native-svg.tsx',
+    '^expo-speech$': '<rootDir>/__mocks__/expo-speech.ts',
   },
   testMatch: ['**/__tests__/**/*.test.[jt]s?(x)'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],

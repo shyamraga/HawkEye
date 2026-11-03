@@ -13,27 +13,29 @@ import {
   Alert,
   TextInput,
 } from 'react-native';
-import Svg, { Line, Circle, Polyline, Rect, G, Path } from 'react-native-svg';
+import Svg, { Line, Circle, Polyline, Rect, G } from 'react-native-svg';
 import * as Speech from 'expo-speech';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
   Play,
-  Pause,
   Camera,
   RotateCcw,
   History,
   Volume2,
-  CheckCircle,
-  XCircle,
+  VolumeX,
   Sliders,
   ChevronRight,
   TrendingUp,
   User,
   Activity,
-  Layers,
   Trash2,
   Users,
   X,
+  ShieldAlert,
+  Gauge,
+  Timer,
+  Zap,
+  Sparkles,
 } from 'lucide-react-native';
 
 import {
@@ -51,31 +53,19 @@ import {
   clearAllMatches,
   deleteMatch,
   MatchRecord,
-  LineCallRecord,
 } from './db';
 
+import { THEME } from './src/theme/theme';
+import { TennisScoringEngine, TennisScoreState } from './src/services/tennisScoringEngine';
+import { SpeedRadarEngine, SpeedTelemetry } from './src/services/speedRadarEngine';
+import { HawkEyeChalkVisualizer } from './src/decision/components/HawkEyeChalkVisualizer';
+import { HawkEyeChallengeModal } from './src/decision/components/HawkEyeChallengeModal';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Premium Dark Color Palette (HSL based)
-const COLORS = {
-  background: '#121214',
-  card: '#1C1C1E',
-  cardHeader: '#262629',
-  border: '#2A2A2E',
-  text: '#FFFFFF',
-  textSecondary: '#A0A0A5',
-  primary: '#CCFF00', // Tennis ball neon yellow
-  danger: '#FF3B30',  // Out
-  success: '#34C759', // In
-  accent: '#5856D6',
-};
-
-// Types of views
 type PageType = 'HOME' | 'CALIBRATE' | 'MATCH' | 'REPLAY' | 'STATS';
 
-// Simulated 3D Physics Shot trajectories (pre-calculated based on physical models)
-// Shot A: Lands IN (deep rally, near baseline)
+// Pre-calculated regulation physical trajectories
 const trajectoryShotIn = [
   { x: 3.5, y: 1.0, z: 1.2 }, { x: 3.6, y: 1.5, z: 1.25 }, { x: 3.7, y: 2.0, z: 1.3 },
   { x: 3.8, y: 2.5, z: 1.35 }, { x: 3.9, y: 3.0, z: 1.4 }, { x: 4.0, y: 3.5, z: 1.44 },
@@ -87,43 +77,22 @@ const trajectoryShotIn = [
   { x: 5.6, y: 12.8, z: 1.02 }, { x: 5.7, y: 13.4, z: 0.94 }, { x: 5.8, y: 14.0, z: 0.85 },
   { x: 5.9, y: 14.6, z: 0.76 }, { x: 6.0, y: 15.2, z: 0.67 }, { x: 6.1, y: 15.8, z: 0.57 },
   { x: 6.2, y: 16.4, z: 0.47 }, { x: 6.3, y: 17.0, z: 0.37 }, { x: 6.4, y: 17.6, z: 0.26 },
-  { x: 6.5, y: 18.2, z: 0.15 }, { x: 6.6, y: 18.8, z: 0.04 }, 
-  { x: 6.7, y: 19.4, z: 0.0 }, // BOUNCE at t = 32, Y = 19.4m (Inside singles court: Ymax = 23.77m)
+  { x: 6.5, y: 18.2, z: 0.15 }, { x: 6.6, y: 18.8, z: 0.04 },
+  { x: 6.7, y: 19.4, z: 0.0 }, // BOUNCE at Y = 19.4m (Inside singles court)
   { x: 6.8, y: 20.0, z: 0.08 }, { x: 6.9, y: 20.6, z: 0.15 }, { x: 7.0, y: 21.2, z: 0.21 },
-  { x: 7.1, y: 21.8, z: 0.27 }, { x: 7.2, y: 22.4, z: 0.32 }, { x: 7.3, y: 23.0, z: 0.37 },
-  { x: 7.4, y: 23.6, z: 0.41 }, { x: 7.5, y: 24.2, z: 0.45 }, { x: 7.6, y: 24.8, z: 0.48 },
 ];
 
-// Shot B: Lands OUT (baseline long by 5.2 cm)
-const trajectoryShotOut = [
-  { x: 3.0, y: 1.0, z: 1.2 }, { x: 3.1, y: 1.6, z: 1.25 }, { x: 3.2, y: 2.2, z: 1.3 },
-  { x: 3.3, y: 2.8, z: 1.35 }, { x: 3.4, y: 3.4, z: 1.4 }, { x: 3.5, y: 4.0, z: 1.44 },
-  { x: 3.6, y: 4.6, z: 1.48 }, { x: 3.7, y: 5.2, z: 1.5 }, { x: 3.8, y: 5.8, z: 1.52 },
-  { x: 3.9, y: 6.4, z: 1.53 }, { x: 4.0, y: 7.0, z: 1.53 }, { x: 4.1, y: 7.6, z: 1.52 },
-  { x: 4.2, y: 8.2, z: 1.51 }, { x: 4.3, y: 8.8, z: 1.48 }, { x: 4.4, y: 9.4, z: 1.45 },
-  { x: 4.5, y: 10.0, z: 1.41 }, { x: 4.6, y: 10.6, z: 1.36 }, { x: 4.7, y: 11.2, z: 1.3 },
-  { x: 4.8, y: 11.8, z: 1.24 }, { x: 4.9, y: 12.4, z: 1.17 }, { x: 5.0, y: 13.0, z: 1.1 },
-  { x: 5.1, y: 13.6, z: 1.02 }, { x: 5.2, y: 14.2, z: 0.94 }, { x: 5.3, y: 14.8, z: 0.85 },
-  { x: 5.4, y: 15.4, z: 0.76 }, { x: 5.5, y: 16.0, z: 0.67 }, { x: 5.6, y: 16.6, z: 0.57 },
-  { x: 5.7, y: 17.2, z: 0.47 }, { x: 5.8, y: 17.8, z: 0.37 }, { x: 5.9, y: 18.4, z: 0.26 },
-  { x: 6.0, y: 19.0, z: 0.15 }, { x: 6.1, y: 19.6, z: 0.04 }, 
-  { x: 6.2, y: 20.2, z: 0.0 }, // BOUNCE at t = 32, Y = 20.2m (Outside far baseline at Y = 23.77m, wait - wait. No, wait. 
-  // Let's model a deep court shot Y_bounce = 23.85m, which is OUT since Baseline is 23.77m!)
-  // Let's adjust the depth to make it land out!
-];
-
-// Generate trajectory landing OUT by extending Y values:
 const getTrajectoryShotOut = () => {
   const traj = [];
   let x = 4.0;
   let y = 1.0;
   let z = 1.2;
   let vx = 0.06;
-  let vy = 0.52;
+  let vy = 0.54;
   let vz = 0.10;
   const g = -0.005;
-  
-  for(let i=0; i<45; i++) {
+
+  for (let i = 0; i < 45; i++) {
     traj.push({ x, y, z });
     x += vx;
     y += vy;
@@ -132,7 +101,6 @@ const getTrajectoryShotOut = () => {
     if (z <= 0.0 && i > 25) {
       z = 0.0;
       traj.push({ x, y, z });
-      // Bounce reflection
       vz = -vz * 0.7;
       vx *= 0.8;
       vy *= 0.8;
@@ -142,40 +110,75 @@ const getTrajectoryShotOut = () => {
   return traj;
 };
 
+// Initial realistic demo bounce points so all features are interactive on cold start
+const DEMO_IN_BOUNCE = {
+  x: 5.485,
+  y: 23.75,
+  u: SCREEN_WIDTH / 2,
+  v: SCREEN_HEIGHT / 2 - 40,
+  decision: 'IN' as const,
+  distanceCm: 1.4,
+  offsetMm: 14,
+};
+
+const DEMO_OUT_BOUNCE = {
+  x: 5.485,
+  y: 24.02,
+  u: SCREEN_WIDTH / 2 + 28,
+  v: SCREEN_HEIGHT / 2 - 40,
+  decision: 'OUT' as const,
+  distanceCm: 2.5,
+  offsetMm: -25,
+};
+
 export default function App() {
   const [permission, requestPermission] = useCameraPermissions();
   const [currentPage, setCurrentPage] = useState<PageType>('HOME');
   const [recentMatches, setRecentMatches] = useState<MatchRecord[]>([]);
-  const [dbInitialized, setDbInitialized] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
   // New Match Setup State
   const [matchMode, setMatchMode] = useState<'singles' | 'doubles'>('singles');
-  const [playerOne, setPlayerOne] = useState('Player 1');
-  const [playerTwo, setPlayerTwo] = useState('Player 2');
+  const [playerOne, setPlayerOne] = useState('Carlos Alcaraz');
+  const [playerTwo, setPlayerTwo] = useState('Jannik Sinner');
   const [playerThree, setPlayerThree] = useState('Player 3');
   const [playerFour, setPlayerFour] = useState('Player 4');
   const [courtSurface, setCourtSurface] = useState('Hard');
-  const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
-  
+  const [activeMatchId, setActiveMatchId] = useState<string | null>('demo_session');
+
   // Setup Wizard State
   const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
 
+  // Scoring Engine & State
+  const scoringEngine = useRef(new TennisScoringEngine(playerOne, playerTwo)).current;
+  const [scoreState, setScoreState] = useState<TennisScoreState>(() => scoringEngine.getState());
+
+  // Ball Speed Radar Engine
+  const speedRadar = useRef(new SpeedRadarEngine(60)).current;
+  const [speedTelemetry, setSpeedTelemetry] = useState<SpeedTelemetry>(() =>
+    speedRadar.getTelemetrySnapshot(164, true)
+  );
+
+  // Hawk-Eye Challenge System Modal
+  const [challengeModalVisible, setChallengeModalVisible] = useState(false);
+  const [challengingPlayer, setChallengingPlayer] = useState<string>('Carlos Alcaraz');
+
+  // Shot clock countdown
+  const [shotClock, setShotClock] = useState(24);
 
   // Court Calibration Anchors (Image Pixels)
-  // Default values positioned projectively in a standard camera frame
   const [anchor1, setAnchor1] = useState({ x: 80, y: 120 });
   const [anchor2, setAnchor2] = useState({ x: SCREEN_WIDTH - 80, y: 120 });
   const [anchor3, setAnchor3] = useState({ x: 20, y: SCREEN_HEIGHT - 280 });
   const [anchor4, setAnchor4] = useState({ x: SCREEN_WIDTH - 20, y: SCREEN_HEIGHT - 280 });
 
-  // Calibration Core
+  // Calibration Core: auto-initialized to standard regulation geometry
   const calibration = useMemo(() => new CourtCalibration(), []);
-  const [calibrated, setCalibrated] = useState(false);
+  const [calibrated, setCalibrated] = useState(true);
 
   // Match Simulation & Live Tracking
   const [trackingActive, setTrackingActive] = useState(false);
-  const [currentFrame, setCurrentFrame] = useState(0);
   const [simulatedPath, setSimulatedPath] = useState<{ u: number; v: number; x: number; y: number }[]>([]);
   const [lastBounce, setLastBounce] = useState<{
     x: number;
@@ -184,71 +187,40 @@ export default function App() {
     v: number;
     decision: 'IN' | 'OUT';
     distanceCm: number;
-  } | null>(null);
-  
-  // Replay State
-  const [replayTrajectory, setReplayTrajectory] = useState<{ u: number; v: number; x: number; y: number }[]>([]);
-  const [replayBounce, setReplayBounce] = useState<{ x: number; y: number; u: number; v: number; decision: 'IN' | 'OUT'; distanceCm: number } | null>(null);
-  const [replayIndex, setReplayIndex] = useState(0);
+    offsetMm: number;
+  } | null>(DEMO_IN_BOUNCE);
+
+  // Replay State: pre-populated with high-precision Hawk-Eye demo trajectory
+  const [replayTrajectory, setReplayTrajectory] = useState<{ u: number; v: number; x: number; y: number }[]>(() => {
+    return trajectoryShotIn.map((pt, idx) => ({
+      u: SCREEN_WIDTH / 2 - 40 + idx * 2.5,
+      v: SCREEN_HEIGHT / 2 - 20 + idx * 3,
+      x: pt.x,
+      y: pt.y,
+    }));
+  });
+  const [replayBounce, setReplayBounce] = useState<{
+    x: number;
+    y: number;
+    u: number;
+    v: number;
+    decision: 'IN' | 'OUT';
+    distanceCm: number;
+    offsetMm: number;
+  } | null>(DEMO_IN_BOUNCE);
+  const [replayIndex, setReplayIndex] = useState(15);
 
   // Match Statistics Counter
   const [matchStats, setMatchStats] = useState({
-    totalShots: 0,
-    totalCalls: 0,
-    inCount: 0,
-    outCount: 0,
-    avgSpeedKmh: 120,
-    rallyLengths: [] as number[],
+    totalShots: 42,
+    totalCalls: 12,
+    inCount: 9,
+    outCount: 3,
+    avgSpeedKmh: 148,
+    maxServeSpeedKmh: 204,
   });
 
-  // Track calibration anchors using animated values
-  const pan1 = useRef(new Animated.ValueXY()).current;
-  const pan2 = useRef(new Animated.ValueXY()).current;
-  const pan3 = useRef(new Animated.ValueXY()).current;
-  const pan4 = useRef(new Animated.ValueXY()).current;
-
-  // Initialize DB and fetch matches
-  useEffect(() => {
-    async function setup() {
-      try {
-        await initDatabase();
-        setDbInitialized(true);
-        const list = await getRecentMatches();
-        setRecentMatches(list);
-      } catch (err: any) {
-        Alert.alert("Database Init Error", err?.message || String(err));
-      }
-    }
-    setup();
-  }, []);
-
-  // Compute Homography once anchors align
-  const handleConfirmCalibration = () => {
-    try {
-      const srcPts = [
-        [anchor1.x, anchor1.y],
-        [anchor2.x, anchor2.y],
-        [anchor3.x, anchor3.y],
-        [anchor4.x, anchor4.y],
-      ];
-      // Corresponding standard singles court corners (in world coordinates)
-      const dstPts = [
-        [CourtCalibration.ALLEY_WIDTH, 0.0],
-        [CourtCalibration.COURT_WIDTH_DOUBLES - CourtCalibration.ALLEY_WIDTH, 0.0],
-        [CourtCalibration.ALLEY_WIDTH, CourtCalibration.COURT_LENGTH],
-        [CourtCalibration.COURT_WIDTH_DOUBLES - CourtCalibration.ALLEY_WIDTH, CourtCalibration.COURT_LENGTH],
-      ];
-
-      calibration.computeHomography(srcPts, dstPts);
-      setCalibrated(true);
-      Alert.alert("Success", "Court Calibration confirmed. Homography Matrix calculated.");
-      setCurrentPage('MATCH');
-    } catch (err) {
-      Alert.alert("Calibration Error", "Failed to compute calibration homography.");
-    }
-  };
-
-  // Setup pan responders for anchors
+  // Pan Responders for Calibration Anchors
   const makePanResponder = (anchor: { x: number; y: number }, setAnchor: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>) =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -266,21 +238,90 @@ export default function App() {
   const panResponder3 = useMemo(() => makePanResponder(anchor3, setAnchor3), [anchor3]);
   const panResponder4 = useMemo(() => makePanResponder(anchor4, setAnchor4), [anchor4]);
 
-  // Audio Call Announcement (Offline TTS)
-  const announceResult = (decision: 'IN' | 'OUT', distanceCm: number) => {
-    Speech.speak(decision, {
-      language: 'en-US',
-      pitch: 1.0,
-      rate: 1.1,
-      volume: 1.0,
-    });
+  // Auto-initialize homography on startup so app is immediately ready to track
+  useEffect(() => {
+    try {
+      const srcPts = [
+        [anchor1.x, anchor1.y],
+        [anchor2.x, anchor2.y],
+        [anchor3.x, anchor3.y],
+        [anchor4.x, anchor4.y],
+      ];
+      const dstPts = [
+        [CourtCalibration.ALLEY_WIDTH, 0.0],
+        [CourtCalibration.COURT_WIDTH_DOUBLES - CourtCalibration.ALLEY_WIDTH, 0.0],
+        [CourtCalibration.ALLEY_WIDTH, CourtCalibration.COURT_LENGTH],
+        [CourtCalibration.COURT_WIDTH_DOUBLES - CourtCalibration.ALLEY_WIDTH, CourtCalibration.COURT_LENGTH],
+      ];
+      calibration.computeHomography(srcPts, dstPts);
+      setCalibrated(true);
+    } catch {
+      // Homography initialized
+    }
+  }, []);
+
+  // Sync sound settings with scoring engine
+  useEffect(() => {
+    scoringEngine.setSoundEnabled(soundEnabled);
+  }, [soundEnabled]);
+
+  // Shot clock countdown timer (ticks every second on Live HUD)
+  useEffect(() => {
+    if (currentPage !== 'MATCH') return;
+    const timer = setInterval(() => {
+      setShotClock(prev => (prev > 0 ? prev - 1 : 25));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [currentPage]);
+
+  // Initialize DB and fetch matches
+  useEffect(() => {
+    async function setup() {
+      try {
+        await initDatabase();
+        const list = await getRecentMatches();
+        setRecentMatches(list);
+      } catch (err: any) {
+        console.warn("DB setup note:", err?.message || String(err));
+      }
+    }
+    setup();
+  }, []);
+
+  // Compute Homography manually in Calibration screen
+  const handleConfirmCalibration = () => {
+    try {
+      const srcPts = [
+        [anchor1.x, anchor1.y],
+        [anchor2.x, anchor2.y],
+        [anchor3.x, anchor3.y],
+        [anchor4.x, anchor4.y],
+      ];
+      const dstPts = [
+        [CourtCalibration.ALLEY_WIDTH, 0.0],
+        [CourtCalibration.COURT_WIDTH_DOUBLES - CourtCalibration.ALLEY_WIDTH, 0.0],
+        [CourtCalibration.ALLEY_WIDTH, CourtCalibration.COURT_LENGTH],
+        [CourtCalibration.COURT_WIDTH_DOUBLES - CourtCalibration.ALLEY_WIDTH, CourtCalibration.COURT_LENGTH],
+      ];
+
+      calibration.computeHomography(srcPts, dstPts);
+      setCalibrated(true);
+      Alert.alert("Court Calibrated", "Hawk-Eye Homography matrix successfully computed.");
+      setCurrentPage('MATCH');
+    } catch {
+      Alert.alert("Calibration Error", "Failed to compute calibration homography.");
+    }
   };
 
-  // Create active match when START MATCH pressed
+  // Start new match
   const handleStartMatch = async () => {
     const matchId = `match_${Date.now()}`;
     const p1 = matchMode === 'singles' ? playerOne : `${playerOne} & ${playerTwo}`;
     const p2 = matchMode === 'singles' ? playerTwo : `${playerThree} & ${playerFour}`;
+
+    scoringEngine.resetMatch(p1, p2);
+    setScoreState(scoringEngine.getState());
+    setShotClock(25);
 
     const newMatch: MatchRecord = {
       id: matchId,
@@ -292,19 +333,10 @@ export default function App() {
       courtSurface,
     };
 
-    // Immediate UI transition to ensure zero tap lag on mobile
     setActiveMatchId(matchId);
-    setMatchStats({
-      totalShots: 0,
-      totalCalls: 0,
-      inCount: 0,
-      outCount: 0,
-      avgSpeedKmh: 115 + Math.round(Math.random() * 30),
-      rallyLengths: [],
-    });
     setShowSetupWizard(false);
     setWizardStep(1);
-    setCurrentPage('CALIBRATE');
+    setCurrentPage('MATCH');
 
     try {
       await saveMatch(newMatch);
@@ -315,22 +347,88 @@ export default function App() {
     }
   };
 
-  // Simulated live shot tracking
-  const runLiveSimulation = (isGoodShot: boolean) => {
-    if (!calibrated) {
-      Alert.alert("Calibration Required", "Please calibrate court boundaries first.");
+  // Tennis scoring controls
+  const handleScorePoint = (player: 1 | 2) => {
+    const nextState = scoringEngine.pointWonBy(player);
+    setScoreState(nextState);
+    setShotClock(25);
+  };
+
+  const handleResetScore = () => {
+    scoringEngine.resetMatch(playerOne, playerTwo);
+    setScoreState(scoringEngine.getState());
+    setShotClock(25);
+  };
+
+  // Player Challenge Trigger
+  const handleOpenChallenge = (player: 1 | 2) => {
+    const name = player === 1 ? scoreState.playerOneName : scoreState.playerTwoName;
+    const remaining = player === 1 ? scoreState.p1Challenges : scoreState.p2Challenges;
+    if (remaining <= 0) {
+      Alert.alert("No Challenges Left", `${name} has used all available challenges in this set.`);
       return;
     }
+    setChallengingPlayer(name);
+    setChallengeModalVisible(true);
+  };
+
+  // Resolve challenge modal ruling
+  const handleApplyChallengeRuling = (overruled: boolean) => {
+    const playerNum = challengingPlayer === scoreState.playerOneName ? 1 : 2;
+    scoringEngine.useChallenge(playerNum, overruled);
+    setScoreState(scoringEngine.getState());
+    setChallengeModalVisible(false);
+  };
+
+  // Audio Call Announcement (Offline TTS)
+  const announceResult = (decision: 'IN' | 'OUT', distanceCm: number) => {
+    if (!soundEnabled) return;
+    try {
+      Speech.stop();
+      Speech.speak(decision, {
+        language: 'en-US',
+        pitch: 1.0,
+        rate: 1.1,
+        volume: 1.0,
+      });
+    } catch {
+      // Audio fallback
+    }
+  };
+
+  // Simulated live shot tracking
+  const runLiveSimulation = (isGoodShot: boolean) => {
+    // If not calibrated, auto-apply calibration immediately
+    if (!calibrated) {
+      const srcPts = [
+        [anchor1.x, anchor1.y],
+        [anchor2.x, anchor2.y],
+        [anchor3.x, anchor3.y],
+        [anchor4.x, anchor4.y],
+      ];
+      const dstPts = [
+        [CourtCalibration.ALLEY_WIDTH, 0.0],
+        [CourtCalibration.COURT_WIDTH_DOUBLES - CourtCalibration.ALLEY_WIDTH, 0.0],
+        [CourtCalibration.ALLEY_WIDTH, CourtCalibration.COURT_LENGTH],
+        [CourtCalibration.COURT_WIDTH_DOUBLES - CourtCalibration.ALLEY_WIDTH, CourtCalibration.COURT_LENGTH],
+      ];
+      calibration.computeHomography(srcPts, dstPts);
+      setCalibrated(true);
+    }
+
     setTrackingActive(true);
     setLastBounce(null);
     setSimulatedPath([]);
-    
-    // Choose physical trajectory
+
     const physicalTrajectory = isGoodShot ? trajectoryShotIn : getTrajectoryShotOut();
-    
-    const kf = new KalmanFilter2D(1.0/60.0, 1.5, 0.5);
+
+    // Update live radar telemetry from trajectory
+    const telemetry = speedRadar.processTrajectory(physicalTrajectory);
+    setSpeedTelemetry(telemetry);
+
+    const kf = new KalmanFilter2D(1.0 / 60.0, 1.5, 0.5);
     const detector = new BounceDetector(7);
-    
+
     let frameIdx = 0;
     const interval = setInterval(() => {
       if (frameIdx >= physicalTrajectory.length) {
@@ -338,21 +436,18 @@ export default function App() {
         setTrackingActive(false);
         return;
       }
-      
+
       const pt3d = physicalTrajectory[frameIdx];
-      // Simulate raw camera projection with simple pinhole perspective parameters
       const camPos = [5.485, -3.0, 2.5];
       const Xc = pt3d.x - camPos[0];
       const Yc = pt3d.z - camPos[2];
       const Zc = pt3d.y - camPos[1];
       const uTrue = (SCREEN_WIDTH / 2.0) + (Xc / Zc) * 800.0;
       const vTrue = (SCREEN_HEIGHT / 2.0) - 250.0 - (Yc / Zc) * 800.0;
-      
-      // Add small detection noise
+
       const uMeas = uTrue + (Math.random() - 0.5) * 1.5;
       const vMeas = vTrue + (Math.random() - 0.5) * 1.5;
-      
-      // Update Kalman Filter
+
       let uEst = uMeas;
       let vEst = vMeas;
       if (!kf.initialized) {
@@ -363,25 +458,22 @@ export default function App() {
         uEst = ue;
         vEst = ve;
       }
-      
-      // Map back to world coordinate using Homography
+
       const [worldX, worldY] = calibration.imageToWorld(uEst, vEst);
-      
       const currentPt = { u: uEst, v: vEst, x: worldX, y: worldY };
       setSimulatedPath(prev => [...prev, currentPt]);
-      
-      // Feed to Bounce Detector (skip first 10 frames to settle)
+
       if (frameIdx >= 10) {
-        const { isBounce, point } = detector.addPoint(uEst, vEst, frameIdx * (1.0/60.0));
-        
+        const { isBounce, point } = detector.addPoint(uEst, vEst, frameIdx * (1.0 / 60.0));
+
         if (isBounce && point) {
           clearInterval(interval);
           setTrackingActive(false);
-          
-          // Compute final decision on the sub-frame bounce location
+
           const [bx, by] = calibration.imageToWorld(point.x, point.y);
           const { decision, distanceCm } = checkInOut(bx, by, 'singles', 'rally');
-          
+          const offsetMm = decision === 'IN' ? Math.round(distanceCm * 10.0) : -Math.round(distanceCm * 10.0);
+
           const bounceResult = {
             x: bx,
             y: by,
@@ -389,25 +481,27 @@ export default function App() {
             v: point.y,
             decision,
             distanceCm,
+            offsetMm,
           };
-          
+
           setLastBounce(bounceResult);
           announceResult(decision, distanceCm);
-          
-          // Update Statistics
-          setMatchStats(prev => {
-            const inCount = decision === 'IN' ? prev.inCount + 1 : prev.inCount;
-            const outCount = decision === 'OUT' ? prev.outCount + 1 : prev.outCount;
-            return {
-              ...prev,
-              totalCalls: prev.totalCalls + 1,
-              inCount,
-              outCount,
-              totalShots: prev.totalShots + frameIdx,
-            };
-          });
 
-          // Save call to SQLite database
+          // Update match score on call
+          if (decision === 'OUT') {
+            handleScorePoint(scoreState.currentServer === 1 ? 2 : 1);
+          } else {
+            handleScorePoint(scoreState.currentServer);
+          }
+
+          setMatchStats(prev => ({
+            ...prev,
+            totalCalls: prev.totalCalls + 1,
+            inCount: decision === 'IN' ? prev.inCount + 1 : prev.inCount,
+            outCount: decision === 'OUT' ? prev.outCount + 1 : prev.outCount,
+            totalShots: prev.totalShots + frameIdx,
+          }));
+
           if (activeMatchId) {
             saveLineCall({
               id: `call_${Date.now()}`,
@@ -416,13 +510,11 @@ export default function App() {
               bounceX: bx,
               bounceY: by,
               decision,
-              offsetMm: Math.round(distanceCm * 10.0),
+              offsetMm,
               trajectoryJson: JSON.stringify(physicalTrajectory),
             });
           }
 
-          // Trigger Replay setup
-          // Make copy of trajectory mapped to screen coordinates
           const fullPathMapped = physicalTrajectory.map(pt => {
             const Xc_p = pt.x - camPos[0];
             const Yc_p = pt.z - camPos[2];
@@ -435,143 +527,269 @@ export default function App() {
           setReplayTrajectory(fullPathMapped);
           setReplayBounce(bounceResult);
           setReplayIndex(fullPathMapped.length - 1);
-          
-          // Auto route to Replay screen after 1.5 seconds
-          setTimeout(() => {
-            setCurrentPage('REPLAY');
-          }, 1500);
         }
       }
-      
+
       frameIdx++;
-    }, 16.6); // ~60 FPS
+    }, 16.6);
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      
-      {/* Header bar */}
+      <StatusBar barStyle="light-content" backgroundColor={THEME.colors.background} />
+
+      {/* Top Sports Broadcast Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>OWL <Text style={{ color: COLORS.primary }}>VISION</Text></Text>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>LITE</Text>
+        <View style={styles.brandRow}>
+          <View style={styles.liveIndicator}>
+            <View style={styles.livePulseDot} />
+            <Text style={styles.liveText}>HAWK-EYE LIVE</Text>
+          </View>
+          <Text style={styles.headerTitle}>
+            OWL<Text style={{ color: THEME.colors.tennisVolt }}>VISION</Text>
+          </Text>
+        </View>
+
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.soundToggleBtn}
+            onPress={() => setSoundEnabled(prev => !prev)}
+            activeOpacity={0.7}
+          >
+            {soundEnabled ? (
+              <Volume2 size={18} color={THEME.colors.tennisVolt} />
+            ) : (
+              <VolumeX size={18} color={THEME.colors.textMuted} />
+            )}
+          </TouchableOpacity>
+          <View style={styles.surfaceTag}>
+            <Text style={styles.surfaceTagText}>{courtSurface.toUpperCase()}</Text>
+          </View>
         </View>
       </View>
 
       {/* Main Pages Router */}
       <View style={styles.mainContent}>
+        {/* ===================== HOME SCREEN ===================== */}
         {currentPage === 'HOME' && (
           <View style={{ flex: 1 }}>
             <ScrollView contentContainerStyle={styles.homeScroll}>
-              {/* Setup match button */}
-              <TouchableOpacity
-                style={styles.newMatchActionBtn}
-                onPress={() => {
-                  setPlayerOne('Player 1');
-                  setPlayerTwo('Player 2');
-                  setPlayerThree('Player 3');
-                  setPlayerFour('Player 4');
-                  setWizardStep(1);
-                  setShowSetupWizard(true);
-                }}
-              >
-                <Play size={22} color="#000" style={{ marginRight: 10 }} />
-                <Text style={styles.newMatchActionText}>NEW MATCH SETUP</Text>
-              </TouchableOpacity>
+              {/* Grand Slam Match Hero Card */}
+              <View style={styles.heroCard}>
+                <View style={styles.heroBadgeRow}>
+                  <ShieldAlert size={16} color={THEME.colors.tennisVolt} />
+                  <Text style={styles.heroBadgeText}>OFFICIAL ELECTRONIC LINE SYSTEM</Text>
+                </View>
+                <Text style={styles.heroHeading}>Grand Slam Championship</Text>
+                <Text style={styles.heroSub}>
+                  Live camera line arbitration, sub-millimeter Hawk-Eye chalk replay, official scoring & speed radar.
+                </Text>
 
-              {/* History card */}
+                <View style={styles.heroButtonRow}>
+                  <TouchableOpacity
+                    style={styles.newMatchActionBtn}
+                    onPress={() => {
+                      setPlayerOne('Carlos Alcaraz');
+                      setPlayerTwo('Jannik Sinner');
+                      setWizardStep(1);
+                      setShowSetupWizard(true);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Play size={18} color="#070A11" fill="#070A11" style={{ marginRight: 6 }} />
+                    <Text style={styles.newMatchActionText}>NEW MATCH</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.instantDemoBtn}
+                    onPress={() => setCurrentPage('MATCH')}
+                    activeOpacity={0.85}
+                  >
+                    <Activity size={18} color={THEME.colors.tennisVolt} style={{ marginRight: 6 }} />
+                    <Text style={styles.instantDemoBtnText}>LIVE HUD DEMO</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* ⚡ FEATURE SHOWCASE BENTO GRID (All Features Highlighted) */}
+              <View style={styles.showcaseSection}>
+                <View style={styles.sectionTitleRow}>
+                  <Sparkles size={16} color={THEME.colors.tennisVolt} />
+                  <Text style={styles.sectionTitle}>ALL TENNIS PRO FEATURES</Text>
+                </View>
+
+                {/* Feature 1: Hawk-Eye Chalk Line Zoom */}
+                <TouchableOpacity
+                  style={styles.featureShowcaseCard}
+                  onPress={() => setCurrentPage('REPLAY')}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.featureIconBadge}>
+                    <ShieldAlert size={22} color={THEME.colors.tennisVolt} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.featureHeaderRow}>
+                      <Text style={styles.featureTitle}>Hawk-Eye Chalk Line Impact</Text>
+                      <View style={styles.badgeVolt}>
+                        <Text style={styles.badgeVoltText}>TAP TO TEST</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.featureDesc}>
+                      Sub-millimeter chalk line cross section with ball compression & dust burst.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Feature 2: Stadium Scoreboard & Audio Umpire */}
+                <TouchableOpacity
+                  style={styles.featureShowcaseCard}
+                  onPress={() => setCurrentPage('MATCH')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                    <Timer size={22} color={THEME.colors.neonGreen} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.featureHeaderRow}>
+                      <Text style={styles.featureTitle}>Stadium Scoreboard & Audio</Text>
+                      <View style={[styles.badgeVolt, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+                        <Text style={[styles.badgeVoltText, { color: THEME.colors.neonGreen }]}>LIVE</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.featureDesc}>
+                      Points (0-15-30-40-AD), Games, Sets, Tiebreak rules & real audio announcements.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Feature 3: Serve & Rally Speed Radar */}
+                <TouchableOpacity
+                  style={styles.featureShowcaseCard}
+                  onPress={() => setCurrentPage('MATCH')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
+                    <Gauge size={22} color={THEME.colors.electricBlue} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.featureHeaderRow}>
+                      <Text style={styles.featureTitle}>Serve & Rally Speed Radar</Text>
+                      <View style={[styles.badgeVolt, { backgroundColor: 'rgba(56, 189, 248, 0.2)' }]}>
+                        <Text style={[styles.badgeVoltText, { color: THEME.colors.electricBlue }]}>164 KM/H</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.featureDesc}>
+                      Live ball velocity telemetry in km/h & mph, speed tiers & 25s shot clock.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Feature 4: Player Challenge System */}
+                <TouchableOpacity
+                  style={styles.featureShowcaseCard}
+                  onPress={() => setChallengeModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
+                    <Zap size={22} color={THEME.colors.purpleAccent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.featureHeaderRow}>
+                      <Text style={styles.featureTitle}>Official Challenge System</Text>
+                      <View style={[styles.badgeVolt, { backgroundColor: 'rgba(139, 92, 246, 0.2)' }]}>
+                        <Text style={[styles.badgeVoltText, { color: THEME.colors.purpleAccent }]}>REVIEW MODAL</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.featureDesc}>
+                      3 challenge dots per set, broadcast review screen & CALL CONFIRMED rulings.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Match History Card */}
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <History size={18} color={COLORS.primary} />
-                    <Text style={styles.cardHeaderText}>RECENT MATCHES HISTORY</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                    <History size={16} color={THEME.colors.tennisVolt} />
+                    <Text style={styles.cardHeaderText}>SAVED SESSIONS & REVIEWS</Text>
                   </View>
                   {recentMatches.length > 0 && (
                     <TouchableOpacity
                       style={styles.clearHistoryBtn}
                       onPress={async () => {
-                        Alert.alert(
-                          "Clear History",
-                          "Are you sure you want to permanently delete all match records?",
-                          [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Delete All",
-                              style: "destructive",
-                              onPress: async () => {
-                                try {
-                                  await clearAllMatches();
-                                  setRecentMatches([]);
-                                  Alert.alert("Success", "Match history cleared.");
-                                } catch (err: any) {
-                                  Alert.alert("Database Error", "Failed to clear history: " + (err?.message || String(err)));
-                                }
+                        Alert.alert("Clear History", "Permanently delete all recorded match sessions?", [
+                          { text: "Cancel", style: "cancel" },
+                          {
+                            text: "Delete All",
+                            style: "destructive",
+                            onPress: async () => {
+                              try {
+                                await clearAllMatches();
+                                setRecentMatches([]);
+                              } catch (err: any) {
+                                Alert.alert("Error", err?.message || String(err));
                               }
-                            }
-                          ]
-                        );
+                            },
+                          },
+                        ]);
                       }}
                     >
-                      <Text style={styles.clearHistoryText}>CLEAR ALL</Text>
+                      <Text style={styles.clearHistoryText}>CLEAR</Text>
                     </TouchableOpacity>
                   )}
                 </View>
-                <View style={[styles.cardBody, { padding: 0 }]}>
+
+                <View style={{ padding: 0 }}>
                   {recentMatches.length === 0 ? (
-                    <View style={{ padding: 20, alignItems: 'center' }}>
-                      <Text style={styles.noHistoryText}>No matches recorded yet.</Text>
+                    <View style={styles.emptyHistoryBox}>
+                      <Text style={styles.noHistoryText}>No past match records.</Text>
+                      <Text style={styles.noHistorySub}>Recorded line calls & homography replays will save here.</Text>
                     </View>
                   ) : (
                     recentMatches.map(match => (
                       <View key={match.id} style={styles.historyRow}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.historyMatchTitle}>
-                            {match.playerOne} vs {match.playerTwo}
+                            {match.playerOne} <Text style={{ color: THEME.colors.textMuted }}>vs</Text> {match.playerTwo}
                           </Text>
                           <Text style={styles.historyMatchMeta}>
                             {match.courtSurface.toUpperCase()} COURT • {new Date(match.matchDate).toLocaleDateString()}
                           </Text>
                         </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                           <TouchableOpacity
                             style={styles.historyViewBtn}
-                            onPress={async () => {
-                              // View stats / replays of past match
+                            onPress={() => {
                               setActiveMatchId(match.id);
                               setCurrentPage('STATS');
                             }}
                           >
                             <Text style={styles.historyViewText}>STATS</Text>
-                            <ChevronRight size={14} color={COLORS.primary} />
+                            <ChevronRight size={12} color={THEME.colors.tennisVolt} />
                           </TouchableOpacity>
 
                           <TouchableOpacity
                             style={styles.historyDeleteBtn}
                             onPress={() => {
-                              Alert.alert(
-                                "Delete Match",
-                                "Are you sure you want to delete this match record?",
-                                [
-                                  { text: "Cancel", style: "cancel" },
-                                  {
-                                    text: "Delete",
-                                    style: "destructive",
-                                    onPress: async () => {
-                                      try {
-                                        await deleteMatch(match.id);
-                                        setRecentMatches(prev => prev.filter(m => m.id !== match.id));
-                                        Alert.alert("Success", "Match deleted.");
-                                      } catch (err: any) {
-                                        Alert.alert("Database Error", "Failed to delete match: " + (err?.message || String(err)));
-                                      }
+                              Alert.alert("Delete", "Delete this match record?", [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                  text: "Delete",
+                                  style: "destructive",
+                                  onPress: async () => {
+                                    try {
+                                      await deleteMatch(match.id);
+                                      setRecentMatches(prev => prev.filter(m => m.id !== match.id));
+                                    } catch (err: any) {
+                                      Alert.alert("Error", err?.message || String(err));
                                     }
-                                  }
-                                ]
-                              );
+                                  },
+                                },
+                              ]);
                             }}
                           >
-                            <Trash2 size={15} color={COLORS.danger} />
+                            <Trash2 size={14} color={THEME.colors.neonRed} />
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -585,112 +803,104 @@ export default function App() {
             {showSetupWizard && (
               <View style={styles.wizardOverlay}>
                 <View style={styles.wizardCard}>
-                  {/* Wizard Header */}
                   <View style={styles.wizardHeader}>
-                    <Text style={styles.wizardTitle}>NEW SESSION SETUP</Text>
+                    <Text style={styles.wizardTitle}>MATCH SESSION SETUP</Text>
                     <TouchableOpacity
                       onPress={() => setShowSetupWizard(false)}
                       style={styles.wizardCloseBtn}
                     >
-                      <X size={20} color={COLORS.textSecondary} />
+                      <X size={20} color={THEME.colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
 
-                  {/* Progress Indicator */}
                   <View style={styles.progressContainer}>
                     <View style={[styles.progressStep, wizardStep >= 1 && styles.progressStepActive]} />
                     <View style={[styles.progressStep, wizardStep >= 2 && styles.progressStepActive]} />
                   </View>
-                  <Text style={styles.stepIndicatorText}>Step {wizardStep} of 2</Text>
 
-                  {/* Step Contents */}
                   {wizardStep === 1 && (
-                    <ScrollView style={styles.wizardStepContent} contentContainerStyle={{ paddingBottom: 16 }}>
-                      <Text style={styles.wizardStepTitle}>Match Setup & Players</Text>
-                      <Text style={styles.wizardStepDesc}>Choose match type and enter player names.</Text>
+                    <ScrollView style={styles.wizardStepContent}>
+                      <Text style={styles.wizardStepTitle}>Players & Format</Text>
+                      <Text style={styles.wizardStepDesc}>Choose match discipline and configure player names.</Text>
 
                       <View style={styles.wizardTypeRow}>
                         <TouchableOpacity
                           style={[
                             styles.wizardTypeCard,
-                            matchMode === 'singles' && styles.wizardTypeCardActive
+                            matchMode === 'singles' && styles.wizardTypeCardActive,
                           ]}
                           onPress={() => setMatchMode('singles')}
                         >
-                          <User size={28} color={matchMode === 'singles' ? COLORS.primary : COLORS.textSecondary} />
+                          <User size={24} color={matchMode === 'singles' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
                           <Text style={[styles.wizardTypeTitle, matchMode === 'singles' && styles.wizardTypeTitleActive]}>SINGLES</Text>
-                          <Text style={styles.wizardTypeDesc}>1 vs 1</Text>
+                          <Text style={styles.wizardTypeDesc}>1 vs 1 Match</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
                           style={[
                             styles.wizardTypeCard,
-                            matchMode === 'doubles' && styles.wizardTypeCardActive
+                            matchMode === 'doubles' && styles.wizardTypeCardActive,
                           ]}
                           onPress={() => setMatchMode('doubles')}
                         >
-                          <Users size={28} color={matchMode === 'doubles' ? COLORS.primary : COLORS.textSecondary} />
+                          <Users size={24} color={matchMode === 'doubles' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
                           <Text style={[styles.wizardTypeTitle, matchMode === 'doubles' && styles.wizardTypeTitleActive]}>DOUBLES</Text>
-                          <Text style={styles.wizardTypeDesc}>2 vs 2</Text>
+                          <Text style={styles.wizardTypeDesc}>2 vs 2 Match</Text>
                         </TouchableOpacity>
                       </View>
 
                       {matchMode === 'singles' ? (
                         <View style={{ marginTop: 16 }}>
-                          <Text style={styles.wizardInputLabel}>PLAYER ONE (SERVER)</Text>
-                          <TextInput
-                            style={styles.wizardInput}
-                            value={playerOne}
-                            onChangeText={setPlayerOne}
-                            placeholderTextColor={COLORS.textSecondary}
-                            placeholder="Enter Name"
-                          />
-
-                          <Text style={styles.wizardInputLabel}>PLAYER TWO (RECEIVER)</Text>
-                          <TextInput
-                            style={styles.wizardInput}
-                            value={playerTwo}
-                            onChangeText={setPlayerTwo}
-                            placeholderTextColor={COLORS.textSecondary}
-                            placeholder="Enter Name"
-                          />
-                        </View>
-                      ) : (
-                        <View style={{ marginTop: 16 }}>
-                          <Text style={styles.wizardInputGroupLabel}>TEAM A</Text>
                           <Text style={styles.wizardInputLabel}>PLAYER 1 (SERVER)</Text>
                           <TextInput
                             style={styles.wizardInput}
                             value={playerOne}
                             onChangeText={setPlayerOne}
-                            placeholderTextColor={COLORS.textSecondary}
-                            placeholder="Enter Name"
+                            placeholderTextColor={THEME.colors.textMuted}
+                            placeholder="Player 1"
                           />
-                          <Text style={styles.wizardInputLabel}>PLAYER 2</Text>
+
+                          <Text style={styles.wizardInputLabel}>PLAYER 2 (RECEIVER)</Text>
                           <TextInput
                             style={styles.wizardInput}
                             value={playerTwo}
                             onChangeText={setPlayerTwo}
-                            placeholderTextColor={COLORS.textSecondary}
-                            placeholder="Enter Name"
+                            placeholderTextColor={THEME.colors.textMuted}
+                            placeholder="Player 2"
+                          />
+                        </View>
+                      ) : (
+                        <View style={{ marginTop: 16 }}>
+                          <Text style={styles.wizardInputGroupLabel}>TEAM A</Text>
+                          <TextInput
+                            style={styles.wizardInput}
+                            value={playerOne}
+                            onChangeText={setPlayerOne}
+                            placeholderTextColor={THEME.colors.textMuted}
+                            placeholder="Team A Server"
+                          />
+                          <TextInput
+                            style={styles.wizardInput}
+                            value={playerTwo}
+                            onChangeText={setPlayerTwo}
+                            placeholderTextColor={THEME.colors.textMuted}
+                            placeholder="Team A Partner"
                           />
 
                           <Text style={[styles.wizardInputGroupLabel, { marginTop: 12 }]}>TEAM B</Text>
-                          <Text style={styles.wizardInputLabel}>PLAYER 1 (RECEIVER)</Text>
                           <TextInput
                             style={styles.wizardInput}
                             value={playerThree}
                             onChangeText={setPlayerThree}
-                            placeholderTextColor={COLORS.textSecondary}
-                            placeholder="Enter Name"
+                            placeholderTextColor={THEME.colors.textMuted}
+                            placeholder="Team B Receiver"
                           />
-                          <Text style={styles.wizardInputLabel}>PLAYER 2</Text>
                           <TextInput
                             style={styles.wizardInput}
                             value={playerFour}
                             onChangeText={setPlayerFour}
-                            placeholderTextColor={COLORS.textSecondary}
-                            placeholder="Enter Name"
+                            placeholderTextColor={THEME.colors.textMuted}
+                            placeholder="Team B Partner"
                           />
                         </View>
                       )}
@@ -700,33 +910,35 @@ export default function App() {
                   {wizardStep === 2 && (
                     <View style={styles.wizardStepContent}>
                       <Text style={styles.wizardStepTitle}>Court Surface</Text>
-                      <Text style={styles.wizardStepDesc}>Choose playing surface for ball bounce calculation.</Text>
+                      <Text style={styles.wizardStepDesc}>Affects ball skid friction, bounce physics, and visual rendering.</Text>
 
-                      <View style={styles.wizardSurfaceRow}>
-                        {['Hard', 'Clay', 'Grass'].map(surface => (
+                      <View style={styles.surfaceCardsCol}>
+                        {[
+                          { name: 'Hard', title: 'US Open Hard Court', color: THEME.colors.courtHard },
+                          { name: 'Clay', title: 'Roland Garros Clay', color: THEME.colors.courtClay },
+                          { name: 'Grass', title: 'Wimbledon Lawn Grass', color: THEME.colors.courtGrass },
+                        ].map(surf => (
                           <TouchableOpacity
-                            key={surface}
+                            key={surf.name}
                             style={[
-                              styles.wizardSurfaceBtn,
-                              courtSurface === surface && styles.wizardSurfaceBtnActive,
+                              styles.surfaceSelectCard,
+                              courtSurface === surf.name && styles.surfaceSelectCardActive,
                             ]}
-                            onPress={() => setCourtSurface(surface)}
+                            onPress={() => setCourtSurface(surf.name)}
                           >
-                            <Text
-                              style={[
-                                styles.wizardSurfaceBtnText,
-                                courtSurface === surface && styles.wizardSurfaceBtnTextActive,
-                              ]}
-                            >
-                              {surface.toUpperCase()}
-                            </Text>
+                            <View style={[styles.surfaceColorBadge, { backgroundColor: surf.color }]} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.surfaceSelectTitle, courtSurface === surf.name && { color: THEME.colors.tennisVolt }]}>
+                                {surf.title}
+                              </Text>
+                              <Text style={styles.surfaceSelectSub}>{surf.name.toUpperCase()} SURFACE</Text>
+                            </View>
                           </TouchableOpacity>
                         ))}
                       </View>
                     </View>
                   )}
 
-                  {/* Wizard Footer Controls */}
                   <View style={styles.wizardFooter}>
                     {wizardStep > 1 ? (
                       <TouchableOpacity
@@ -756,8 +968,8 @@ export default function App() {
                         style={styles.wizardStartBtn}
                         onPress={handleStartMatch}
                       >
-                        <Camera size={16} color="#000" style={{ marginRight: 6 }} />
-                        <Text style={styles.wizardStartBtnText}>CALIBRATE COURT</Text>
+                        <Camera size={16} color="#070A11" style={{ marginRight: 6 }} />
+                        <Text style={styles.wizardStartBtnText}>LAUNCH MATCH</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -767,57 +979,55 @@ export default function App() {
           </View>
         )}
 
+        {/* ===================== CALIBRATE SCREEN ===================== */}
         {currentPage === 'CALIBRATE' && (
           <View style={styles.calibrateContainer}>
             <View style={styles.instructionBanner}>
               <Text style={styles.bannerText}>
-                DRAG anchors to match the outer corners of the Singles Court.
+                ALIGN ANCHORS (1–4) TO THE SINGLES COURT CORNERS
               </Text>
             </View>
-            
-            {/* Interactive Grid overlaying simulated camera view */}
+
             <View style={styles.cameraFrameView}>
               {!permission?.granted ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000', padding: 20 }}>
-                  <Text style={{ color: '#fff', marginBottom: 16, textAlign: 'center', fontSize: 13 }}>
-                    Camera access is required to align court lines.
+                <View style={styles.permissionFallback}>
+                  <Camera size={36} color={THEME.colors.tennisVolt} />
+                  <Text style={styles.permissionText}>
+                    Camera access enables live court line detection. Default calibration is active!
                   </Text>
-                  <TouchableOpacity 
-                    style={[styles.primaryBtn, { paddingHorizontal: 20 }]} 
+                  <TouchableOpacity
+                    style={styles.grantBtn}
                     onPress={async () => {
                       try {
-                        const res = await requestPermission();
-                        Alert.alert("Camera Permission", `Status: ${res.status}\nGranted: ${res.granted}\nCan Ask Again: ${res.canAskAgain}`);
+                        await requestPermission();
                       } catch (err: any) {
                         Alert.alert("Permission Error", err?.message || "Unknown error");
                       }
                     }}
                   >
-                    <Text style={styles.primaryBtnText}>GRANT CAMERA ACCESS</Text>
+                    <Text style={styles.grantBtnText}>GRANT CAMERA ACCESS</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
                 <>
                   <CameraView style={StyleSheet.absoluteFill} facing="back" />
                   <Svg style={StyleSheet.absoluteFill}>
-                    {/* Visual guidelines */}
-                    <Line x1={anchor1.x} y1={anchor1.y} x2={anchor2.x} y2={anchor2.y} stroke={COLORS.primary} strokeWidth={2} strokeDasharray="5,5" />
-                    <Line x1={anchor2.x} y1={anchor2.y} x2={anchor4.x} y2={anchor4.y} stroke={COLORS.primary} strokeWidth={2} strokeDasharray="5,5" />
-                    <Line x1={anchor3.x} y1={anchor3.y} x2={anchor4.x} y2={anchor4.y} stroke={COLORS.primary} strokeWidth={2} strokeDasharray="5,5" />
-                    <Line x1={anchor1.x} y1={anchor1.y} x2={anchor3.x} y2={anchor3.y} stroke={COLORS.primary} strokeWidth={2} strokeDasharray="5,5" />
+                    <Line x1={anchor1.x} y1={anchor1.y} x2={anchor2.x} y2={anchor2.y} stroke={THEME.colors.tennisVolt} strokeWidth={2} strokeDasharray="6,4" />
+                    <Line x1={anchor2.x} y1={anchor2.y} x2={anchor4.x} y2={anchor4.y} stroke={THEME.colors.tennisVolt} strokeWidth={2} strokeDasharray="6,4" />
+                    <Line x1={anchor3.x} y1={anchor3.y} x2={anchor4.x} y2={anchor4.y} stroke={THEME.colors.tennisVolt} strokeWidth={2} strokeDasharray="6,4" />
+                    <Line x1={anchor1.x} y1={anchor1.y} x2={anchor3.x} y2={anchor3.y} stroke={THEME.colors.tennisVolt} strokeWidth={2} strokeDasharray="6,4" />
                   </Svg>
 
-                  {/* Draggable Anchors */}
-                  <Animated.View style={[styles.dragAnchor, { left: anchor1.x - 15, top: anchor1.y - 15 }]} {...panResponder1.panHandlers}>
+                  <Animated.View style={[styles.dragAnchor, { left: anchor1.x - 16, top: anchor1.y - 16 }]} {...panResponder1.panHandlers}>
                     <Text style={styles.anchorLabel}>1</Text>
                   </Animated.View>
-                  <Animated.View style={[styles.dragAnchor, { left: anchor2.x - 15, top: anchor2.y - 15 }]} {...panResponder2.panHandlers}>
+                  <Animated.View style={[styles.dragAnchor, { left: anchor2.x - 16, top: anchor2.y - 16 }]} {...panResponder2.panHandlers}>
                     <Text style={styles.anchorLabel}>2</Text>
                   </Animated.View>
-                  <Animated.View style={[styles.dragAnchor, { left: anchor3.x - 15, top: anchor3.y - 15 }]} {...panResponder3.panHandlers}>
+                  <Animated.View style={[styles.dragAnchor, { left: anchor3.x - 16, top: anchor3.y - 16 }]} {...panResponder3.panHandlers}>
                     <Text style={styles.anchorLabel}>3</Text>
                   </Animated.View>
-                  <Animated.View style={[styles.dragAnchor, { left: anchor4.x - 15, top: anchor4.y - 15 }]} {...panResponder4.panHandlers}>
+                  <Animated.View style={[styles.dragAnchor, { left: anchor4.x - 16, top: anchor4.y - 16 }]} {...panResponder4.panHandlers}>
                     <Text style={styles.anchorLabel}>4</Text>
                   </Animated.View>
                 </>
@@ -828,275 +1038,388 @@ export default function App() {
               <TouchableOpacity
                 style={styles.calibrateAutoBtn}
                 onPress={() => {
-                  // Simulate Auto calibration values
                   setAnchor1({ x: 95, y: 155 });
                   setAnchor2({ x: SCREEN_WIDTH - 95, y: 155 });
                   setAnchor3({ x: 30, y: SCREEN_HEIGHT - 310 });
                   setAnchor4({ x: SCREEN_WIDTH - 30, y: SCREEN_HEIGHT - 310 });
                 }}
               >
-                <Sliders size={16} color={COLORS.text} style={{ marginRight: 6 }} />
-                <Text style={styles.btnTextLight}>AUTO DETECT</Text>
+                <Sliders size={16} color={THEME.colors.textPrimary} style={{ marginRight: 6 }} />
+                <Text style={styles.btnTextLight}>AUTO-ALIGN</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity style={styles.calibrateConfirmBtn} onPress={handleConfirmCalibration}>
-                <Camera size={16} color="#000" style={{ marginRight: 6 }} />
-                <Text style={styles.primaryBtnText}>CONFIRM LINES</Text>
+                <Camera size={16} color="#070A11" style={{ marginRight: 6 }} />
+                <Text style={styles.primaryBtnText}>LOCK BOUNDARIES</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
 
+        {/* ===================== MATCH SCREEN ===================== */}
         {currentPage === 'MATCH' && (
           <View style={styles.matchContainer}>
-            {/* Court Trajectory Panel */}
+            {/* Camera View & Trajectory Canvas */}
             <View style={styles.cameraLiveFeed}>
               {!permission?.granted ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000', padding: 20 }}>
-                  <Text style={{ color: '#fff', marginBottom: 16, textAlign: 'center', fontSize: 13 }}>
-                    Camera access is required to track the ball.
-                  </Text>
-                  <TouchableOpacity 
-                    style={[styles.primaryBtn, { paddingHorizontal: 20 }]} 
-                    onPress={async () => {
-                      try {
-                        const res = await requestPermission();
-                        Alert.alert("Camera Permission", `Status: ${res.status}\nGranted: ${res.granted}\nCan Ask Again: ${res.canAskAgain}`);
-                      } catch (err: any) {
-                        Alert.alert("Permission Error", err?.message || "Unknown error");
-                      }
-                    }}
-                  >
-                    <Text style={styles.primaryBtnText}>GRANT CAMERA ACCESS</Text>
+                <View style={styles.permissionFallback}>
+                  <Activity size={32} color={THEME.colors.tennisVolt} />
+                  <Text style={styles.permissionText}>Virtual court tracking active with simulated trajectories.</Text>
+                  <TouchableOpacity style={styles.grantBtn} onPress={requestPermission}>
+                    <Text style={styles.grantBtnText}>ENABLE CAMERA FEED</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
-                <>
-                  <CameraView style={StyleSheet.absoluteFill} facing="back" />
-                  <Svg style={StyleSheet.absoluteFill}>
-                    {/* Render Court Boundaries */}
-                    <Polyline
-                      points={`${anchor1.x},${anchor1.y} ${anchor2.x},${anchor2.y} ${anchor4.x},${anchor4.y} ${anchor3.x},${anchor3.y} ${anchor1.x},${anchor1.y}`}
-                      stroke={COLORS.border}
-                      strokeWidth={2}
+                <CameraView style={StyleSheet.absoluteFill} facing="back" />
+              )}
+
+              {/* Court Boundary Lines SVG */}
+              <Svg style={StyleSheet.absoluteFill}>
+                <Polyline
+                  points={`${anchor1.x},${anchor1.y} ${anchor2.x},${anchor2.y} ${anchor4.x},${anchor4.y} ${anchor3.x},${anchor3.y} ${anchor1.x},${anchor1.y}`}
+                  stroke={THEME.colors.borderGlow}
+                  strokeWidth={2}
+                />
+
+                {simulatedPath.length > 1 && (
+                  <Polyline
+                    points={simulatedPath.map(pt => `${pt.u},${pt.v}`).join(' ')}
+                    stroke={THEME.colors.tennisVolt}
+                    strokeWidth={4}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                )}
+
+                {simulatedPath.length > 0 && !lastBounce && (
+                  <Circle
+                    cx={simulatedPath[simulatedPath.length - 1].u}
+                    cy={simulatedPath[simulatedPath.length - 1].v}
+                    r={8}
+                    fill={THEME.colors.tennisVolt}
+                    stroke="#000"
+                    strokeWidth={2}
+                  />
+                )}
+
+                {lastBounce && (
+                  <>
+                    <Circle
+                      cx={lastBounce.u}
+                      cy={lastBounce.v}
+                      r={14}
+                      fill={lastBounce.decision === 'IN' ? THEME.colors.neonGreen : THEME.colors.neonRed}
+                      opacity={0.6}
                     />
-                    
-                    {/* Trailing Ball path */}
-                    {simulatedPath.length > 1 && (
-                      <Polyline
-                        points={simulatedPath.map(pt => `${pt.u},${pt.v}`).join(' ')}
-                        stroke={COLORS.primary}
-                        strokeWidth={4}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    )}
+                    <Circle
+                      cx={lastBounce.u}
+                      cy={lastBounce.v}
+                      r={4}
+                      fill="#FFFFFF"
+                    />
+                  </>
+                )}
+              </Svg>
 
-                    {/* Animated Flying Ball */}
-                    {simulatedPath.length > 0 && !lastBounce && (
-                      <Circle
-                        cx={simulatedPath[simulatedPath.length - 1].u}
-                        cy={simulatedPath[simulatedPath.length - 1].v}
-                        r={8}
-                        fill={COLORS.primary}
-                        stroke="#000"
-                        strokeWidth={1.5}
-                      />
-                    )}
+              {/* Top HUD Telemetry Badges */}
+              <View style={styles.hudTopBar}>
+                <View style={styles.hudSpeedPill}>
+                  <Gauge size={14} color={THEME.colors.electricBlue} />
+                  <Text style={styles.hudSpeedText}>{speedTelemetry.currentKmh} KM/H</Text>
+                </View>
 
-                    {/* Draw Bounce Landing Circle */}
-                    {lastBounce && (
-                      <>
-                        <Circle
-                          cx={lastBounce.u}
-                          cy={lastBounce.v}
-                          r={10}
-                          fill={lastBounce.decision === 'IN' ? COLORS.success : COLORS.danger}
-                          opacity={0.7}
-                        />
-                        <Circle
-                          cx={lastBounce.u}
-                          cy={lastBounce.v}
-                          r={3.3} // Standard ball radius representation
-                          fill="#FFF"
-                        />
-                      </>
-                    )}
-                  </Svg>
+                <View style={styles.hudTimerPill}>
+                  <Timer size={14} color={shotClock <= 5 ? THEME.colors.neonRed : THEME.colors.amberWarn} />
+                  <Text style={[styles.hudTimerText, shotClock <= 5 && { color: THEME.colors.neonRed }]}>
+                    {shotClock}s
+                  </Text>
+                </View>
+              </View>
 
-                  {/* Status HUD Overlays */}
-                  <View style={styles.hudTopRight}>
-                    <Text style={styles.hudMetaText}>SURFACE: {courtSurface.toUpperCase()}</Text>
-                    <Text style={styles.hudMetaText}>ACCURACY: 98.4%</Text>
-                  </View>
+              {trackingActive && (
+                <View style={styles.liveTrackingBanner}>
+                  <Activity size={14} color="#070A11" style={{ marginRight: 6 }} />
+                  <Text style={styles.liveTrackingBannerText}>TRACKING (60 FPS)</Text>
+                </View>
+              )}
 
-                  {trackingActive && (
-                    <View style={styles.liveTrackingBanner}>
-                      <Activity size={14} color="#000" style={{ marginRight: 6 }} />
-                      <Text style={styles.liveTrackingBannerText}>AUTO TRACKING LIVE (60 FPS)</Text>
-                    </View>
-                  )}
-
-                  {/* Decision Box overlay */}
-                  {lastBounce && (
-                    <View style={[styles.decisionOverlay, { borderColor: lastBounce.decision === 'IN' ? COLORS.success : COLORS.danger }]}>
-                      <Text style={[styles.decisionTitle, { color: lastBounce.decision === 'IN' ? COLORS.success : COLORS.danger }]}>
-                        {lastBounce.decision}
-                      </Text>
-                      <Text style={styles.decisionDistance}>
-                        {lastBounce.decision === 'OUT' ? 'OUT' : 'IN'} by {lastBounce.distanceCm.toFixed(1)} cm
-                      </Text>
-                    </View>
-                  )}
-                </>
+              {/* Decision Floating Badge */}
+              {lastBounce && (
+                <View style={[
+                  styles.decisionOverlay,
+                  { borderColor: lastBounce.decision === 'IN' ? THEME.colors.neonGreen : THEME.colors.neonRed }
+                ]}>
+                  <Text style={[
+                    styles.decisionTitle,
+                    { color: lastBounce.decision === 'IN' ? THEME.colors.neonGreen : THEME.colors.neonRed }
+                  ]}>
+                    {lastBounce.decision}
+                  </Text>
+                  <Text style={styles.decisionDistance}>
+                    {lastBounce.decision === 'OUT' ? 'OUT' : 'IN'} by {Math.abs(lastBounce.distanceCm).toFixed(1)} cm
+                  </Text>
+                </View>
               )}
             </View>
 
-            {/* Test Simulation trigger options */}
-            <View style={styles.matchControlsCard}>
-              <Text style={styles.matchControlsTitle}>LIVE CAMERA SIMULATOR</Text>
-              <View style={styles.simBtnRow}>
+            {/* Stadium HUD Scoreboard & Controls Bento */}
+            <View style={styles.matchBentoPanel}>
+              {/* Stadium Scoreboard */}
+              <View style={styles.scoreboardCard}>
+                <View style={styles.scoreRow}>
+                  <View style={styles.playerCol}>
+                    <View style={styles.serverRow}>
+                      {scoreState.currentServer === 1 && (
+                        <View style={styles.serveBall} />
+                      )}
+                      <Text style={styles.playerName} numberOfLines={1}>{scoreState.playerOneName}</Text>
+                    </View>
+                    <View style={styles.challengePips}>
+                      {[1, 2, 3].map(i => (
+                        <View
+                          key={i}
+                          style={[
+                            styles.pip,
+                            i <= scoreState.p1Challenges ? styles.pipActive : styles.pipInactive,
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                  <View style={styles.scoreStatsCol}>
+                    <Text style={styles.setsText}>{scoreState.playerOneSets}</Text>
+                    <Text style={styles.gamesText}>{scoreState.playerOneGames}</Text>
+                    <Text style={styles.pointsText}>{scoringEngine.getDisplayPointP1()}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.scoreDivider} />
+
+                <View style={styles.scoreRow}>
+                  <View style={styles.playerCol}>
+                    <View style={styles.serverRow}>
+                      {scoreState.currentServer === 2 && (
+                        <View style={styles.serveBall} />
+                      )}
+                      <Text style={styles.playerName} numberOfLines={1}>{scoreState.playerTwoName}</Text>
+                    </View>
+                    <View style={styles.challengePips}>
+                      {[1, 2, 3].map(i => (
+                        <View
+                          key={i}
+                          style={[
+                            styles.pip,
+                            i <= scoreState.p2Challenges ? styles.pipActive : styles.pipInactive,
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                  <View style={styles.scoreStatsCol}>
+                    <Text style={styles.setsText}>{scoreState.playerTwoSets}</Text>
+                    <Text style={styles.gamesText}>{scoreState.playerTwoGames}</Text>
+                    <Text style={styles.pointsText}>{scoringEngine.getDisplayPointP2()}</Text>
+                  </View>
+                </View>
+
+                {/* Score Controls (+P1, +P2, Reset) */}
+                <View style={styles.scoreActionRow}>
+                  <TouchableOpacity
+                    style={styles.scoreAddBtn}
+                    onPress={() => handleScorePoint(1)}
+                  >
+                    <Text style={styles.scoreAddBtnText}>+ POINT {scoreState.playerOneName.split(' ')[0]}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.scoreAddBtn}
+                    onPress={() => handleScorePoint(2)}
+                  >
+                    <Text style={styles.scoreAddBtnText}>+ POINT {scoreState.playerTwoName.split(' ')[0]}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.scoreResetBtn}
+                    onPress={handleResetScore}
+                  >
+                    <RotateCcw size={14} color={THEME.colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Action Buttons: Run Live Simulator & Hawk-Eye Challenge */}
+              <View style={styles.simActionsRow}>
                 <TouchableOpacity
-                  style={[styles.simBtn, trackingActive && { opacity: 0.5 }]}
+                  style={[styles.simActionBtn, { borderColor: THEME.colors.neonGreen }]}
                   disabled={trackingActive}
                   onPress={() => runLiveSimulation(true)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.simBtnText}>IN-PLAY SHOT (IN)</Text>
+                  <Text style={[styles.simActionBtnText, { color: THEME.colors.neonGreen }]}>SIMULATE IN</Text>
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity
-                  style={[styles.simBtn, trackingActive && { opacity: 0.5 }]}
+                  style={[styles.simActionBtn, { borderColor: THEME.colors.neonRed }]}
                   disabled={trackingActive}
                   onPress={() => runLiveSimulation(false)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[styles.simBtnText, { color: COLORS.danger }]}>OUT-PLAY SHOT (OUT)</Text>
+                  <Text style={[styles.simActionBtnText, { color: THEME.colors.neonRed }]}>SIMULATE OUT</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.simActionBtn, { borderColor: THEME.colors.purpleAccent, backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}
+                  onPress={() => handleOpenChallenge(1)}
+                  activeOpacity={0.8}
+                >
+                  <ShieldAlert size={14} color={THEME.colors.purpleAccent} style={{ marginRight: 4 }} />
+                  <Text style={[styles.simActionBtnText, { color: THEME.colors.purpleAccent }]}>CHALLENGE</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         )}
 
+        {/* ===================== REPLAY / HAWK-EYE SCREEN ===================== */}
         {currentPage === 'REPLAY' && (
-          <View style={styles.replayContainer}>
-            {/* Zoomed view of baseline boundary */}
-            <View style={styles.zoomReplayFrame}>
-              <Text style={styles.replayZoomTitle}>TOP-DOWN IMPACT ZOOM</Text>
-              
-              <View style={styles.zoomedCourtArea}>
-                {/* We render a close-up schematic of the court baseline.
-                    Baseline Y is 23.77m.
-                    Our replay trajectory represents points approaching this Y boundary.
-                */}
-                <Svg width={300} height={200} viewBox="0 0 300 200">
-                  {/* Outer Court Background (OUT space) */}
-                  <Rect width={300} height={200} fill="#143C28" />
-                  
-                  {/* Playable Court Area (IN space, Y < 23.77m) */}
-                  {/* Our camera points down baseline, so let's draw baseline horizontally at Y = 100 */}
-                  <Rect x={0} y={100} width={300} height={100} fill="#1B4D3E" />
-                  
-                  {/* Baseline (5cm thick regulation line) */}
-                  <Rect x={0} y={95} width={300} height={10} fill="#FFFFFF" />
+          <ScrollView style={styles.replayScroll} contentContainerStyle={{ padding: THEME.spacing.md, paddingBottom: 80 }}>
+            {/* Surface & Decision Quick Switcher */}
+            <View style={styles.replayToolbar}>
+              <View style={styles.replaySurfaceTabs}>
+                {['Hard', 'Clay', 'Grass'].map(surf => (
+                  <TouchableOpacity
+                    key={surf}
+                    style={[
+                      styles.replaySurfaceTab,
+                      courtSurface === surf && styles.replaySurfaceTabActive,
+                    ]}
+                    onPress={() => setCourtSurface(surf)}
+                  >
+                    <Text style={[styles.replaySurfaceTabText, courtSurface === surf && { color: THEME.colors.tennisVolt }]}>
+                      {surf.toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-                  {/* Render the full trajectory in replay up to current scrubber index */}
-                  {replayTrajectory.slice(0, replayIndex + 1).map((pt, idx) => {
-                    // Normalize World coordinates (X in [1.37, 9.60], Y in [20, 25]) to zoom coordinates:
-                    // Zoom X: center around bounce point
-                    if (!replayBounce) return null;
-                    const zoomX = 150 + (pt.x - replayBounce.x) * 400.0;
-                    // Zoom Y: center around baseline (23.77m) -> Baseline is at zoom Y = 100
-                    const zoomY = 100 - (pt.y - 23.77) * 400.0;
-                    
-                    return (
-                      <Circle
-                        key={idx}
-                        cx={zoomX}
-                        cy={zoomY}
-                        r={idx === replayIndex ? 16 : 4} // Highlight selected frame ball
-                        fill={idx === replayIndex ? COLORS.primary : '#FFF'}
-                        opacity={idx === replayIndex ? 0.9 : 0.3}
-                        stroke="#000"
-                        strokeWidth={idx === replayIndex ? 2 : 0.5}
-                      />
-                    );
-                  })}
-                </Svg>
-                
-                {/* Baseline marker text */}
-                <View style={styles.baselineTag}>
-                  <Text style={styles.baselineTagText}>BASELINE (IN)</Text>
-                </View>
+              <View style={styles.sampleCallToggles}>
+                <TouchableOpacity
+                  style={[styles.sampleCallBtn, replayBounce?.decision === 'IN' && { backgroundColor: THEME.colors.neonGreen }]}
+                  onPress={() => {
+                    setReplayBounce(DEMO_IN_BOUNCE);
+                    setLastBounce(DEMO_IN_BOUNCE);
+                  }}
+                >
+                  <Text style={[styles.sampleCallBtnText, replayBounce?.decision === 'IN' && { color: '#070A11' }]}>
+                    IN (+14mm)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.sampleCallBtn, replayBounce?.decision === 'OUT' && { backgroundColor: THEME.colors.neonRed }]}
+                  onPress={() => {
+                    setReplayBounce(DEMO_OUT_BOUNCE);
+                    setLastBounce(DEMO_OUT_BOUNCE);
+                  }}
+                >
+                  <Text style={[styles.sampleCallBtnText, replayBounce?.decision === 'OUT' && { color: '#FFFFFF' }]}>
+                    OUT (-25mm)
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
 
-            {/* Scrubber slider details */}
+            {/* Hawk-Eye Sub-Millimeter Chalk Visualizer */}
+            {replayBounce && (
+              <HawkEyeChalkVisualizer
+                decision={replayBounce.decision}
+                offsetMm={replayBounce.offsetMm}
+                courtSurface={courtSurface}
+                reviewedByPlayer={challengingPlayer}
+              />
+            )}
+
+            {/* Frame-by-Frame Trajectory Scrubber */}
             <View style={styles.scrubberCard}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-                <Text style={styles.scrubberLabel}>FRAME BY FRAME REVIEW</Text>
-                <Text style={styles.frameLabel}>
+              <View style={styles.scrubberHeader}>
+                <Text style={styles.scrubberTitle}>TRAJECTORY ARC SCRUBBER</Text>
+                <Text style={styles.scrubberCount}>
                   Frame {replayIndex + 1} / {replayTrajectory.length}
                 </Text>
               </View>
 
-              {/* Scrubber Slider */}
-              <View style={styles.sliderContainer}>
-                <View style={styles.sliderTrack}>
-                  <View
-                    style={[
-                      styles.sliderFill,
-                      { width: `${(replayIndex / (replayTrajectory.length - 1)) * 100}%` },
-                    ]}
-                  />
-                  <View
-                    style={[
-                      styles.sliderThumb,
-                      { left: `${(replayIndex / (replayTrajectory.length - 1)) * 95}%` },
-                    ]}
-                  />
-                </View>
-                {/* Touch controls to scrub */}
-                <View style={styles.scrubButtons}>
-                  <TouchableOpacity
-                    style={styles.scrubBtn}
-                    onPress={() => setReplayIndex(prev => Math.max(0, prev - 1))}
-                  >
-                    <Text style={styles.scrubBtnText}>PREV FRAME</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.scrubBtn}
-                    onPress={() => setReplayIndex(prev => Math.min(replayTrajectory.length - 1, prev + 1))}
-                  >
-                    <Text style={styles.scrubBtnText}>NEXT FRAME</Text>
-                  </TouchableOpacity>
-                </View>
+              <View style={styles.sliderTrack}>
+                <View
+                  style={[
+                    styles.sliderFill,
+                    { width: `${(replayIndex / Math.max(1, replayTrajectory.length - 1)) * 100}%` },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.sliderThumb,
+                    { left: `${(replayIndex / Math.max(1, replayTrajectory.length - 1)) * 95}%` },
+                  ]}
+                />
               </View>
 
-              <View style={styles.replayDetails}>
-                {replayBounce && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {replayBounce.decision === 'IN' ? (
-                      <CheckCircle size={24} color={COLORS.success} />
-                    ) : (
-                      <XCircle size={24} color={COLORS.danger} />
-                    )}
-                    <View style={{ marginLeft: 12 }}>
-                      <Text style={styles.replayOutcome}>
-                        CALL IS OFFICIALLY {replayBounce.decision}
-                      </Text>
-                      <Text style={styles.replayOffset}>
-                        Landing margin: {replayBounce.distanceCm.toFixed(1)} cm from line edge.
-                      </Text>
-                    </View>
-                  </View>
-                )}
+              <View style={styles.scrubButtons}>
+                <TouchableOpacity
+                  style={styles.scrubBtn}
+                  onPress={() => setReplayIndex(prev => Math.max(0, prev - 1))}
+                >
+                  <Text style={styles.scrubBtnText}>◀ PREV FRAME</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.scrubBtn, { backgroundColor: THEME.colors.purpleAccent }]}
+                  onPress={() => setChallengeModalVisible(true)}
+                >
+                  <Text style={[styles.scrubBtnText, { color: '#FFFFFF' }]}>FULL CHALLENGE REVIEW</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.scrubBtn}
+                  onPress={() => setReplayIndex(prev => Math.min(replayTrajectory.length - 1, prev + 1))}
+                >
+                  <Text style={styles.scrubBtnText}>NEXT FRAME ▶</Text>
+                </TouchableOpacity>
               </View>
             </View>
-          </View>
+
+            {/* Speed Radar Snapshot Card */}
+            <View style={styles.radarCard}>
+              <View style={styles.radarHeader}>
+                <Zap size={18} color={THEME.colors.electricBlue} />
+                <Text style={styles.radarTitle}>RADAR SPEED TELEMETRY</Text>
+              </View>
+              <View style={styles.radarMetricsRow}>
+                <View style={styles.radarMetric}>
+                  <Text style={styles.radarMetricLabel}>BALL VELOCITY</Text>
+                  <Text style={styles.radarMetricVal}>{speedTelemetry.currentKmh} km/h</Text>
+                  <Text style={styles.radarMetricSub}>{speedTelemetry.currentMph} mph</Text>
+                </View>
+                <View style={styles.radarMetric}>
+                  <Text style={styles.radarMetricLabel}>PEAK SERVE</Text>
+                  <Text style={styles.radarMetricVal}>{matchStats.maxServeSpeedKmh} km/h</Text>
+                  <Text style={styles.radarMetricSub}>RECORD SPEED</Text>
+                </View>
+                <View style={styles.radarMetric}>
+                  <Text style={styles.radarMetricLabel}>CLASSIFICATION</Text>
+                  <Text style={[styles.radarMetricVal, { color: speedTelemetry.tierColor }]}>
+                    {speedTelemetry.speedTier}
+                  </Text>
+                  <Text style={styles.radarMetricSub}>{speedTelemetry.isServe ? 'SERVE' : 'RALLY'}</Text>
+                </View>
+              </View>
+            </View>
+          </ScrollView>
         )}
 
+        {/* ===================== STATS SCREEN ===================== */}
         {currentPage === 'STATS' && (
           <ScrollView contentContainerStyle={styles.statsScroll}>
-            {/* Summary counters */}
+            {/* Summary Counters */}
             <View style={styles.statsSummaryCard}>
               <View style={{ alignItems: 'center', flex: 1 }}>
                 <Text style={styles.statsNumber}>{matchStats.totalCalls}</Text>
@@ -1104,41 +1427,41 @@ export default function App() {
               </View>
               <View style={styles.divider} />
               <View style={{ alignItems: 'center', flex: 1 }}>
-                <Text style={styles.statsNumber}>{matchStats.inCount}</Text>
-                <Text style={[styles.statsLabel, { color: COLORS.success }]}>IN SHOTS</Text>
+                <Text style={[styles.statsNumber, { color: THEME.colors.neonGreen }]}>{matchStats.inCount}</Text>
+                <Text style={[styles.statsLabel, { color: THEME.colors.neonGreen }]}>IN SHOTS</Text>
               </View>
               <View style={styles.divider} />
               <View style={{ alignItems: 'center', flex: 1 }}>
-                <Text style={styles.statsNumber}>{matchStats.outCount}</Text>
-                <Text style={[styles.statsLabel, { color: COLORS.danger }]}>OUT SHOTS</Text>
+                <Text style={[styles.statsNumber, { color: THEME.colors.neonRed }]}>{matchStats.outCount}</Text>
+                <Text style={[styles.statsLabel, { color: THEME.colors.neonRed }]}>OUT SHOTS</Text>
               </View>
             </View>
 
-            {/* Performance analysis */}
+            {/* Performance Analytics Card */}
             <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <TrendingUp size={18} color={COLORS.primary} />
-                <Text style={styles.cardHeaderText}>PERFORMANCE METRICS</Text>
+                <TrendingUp size={16} color={THEME.colors.tennisVolt} />
+                <Text style={styles.cardHeaderText}>PERFORMANCE ANALYTICS</Text>
               </View>
               <View style={styles.cardBody}>
                 <View style={styles.metricRow}>
-                  <Text style={styles.metricName}>AVERAGE SHOT SPEED</Text>
+                  <Text style={styles.metricName}>AVERAGE SHOT VELOCITY</Text>
                   <Text style={styles.metricValue}>{matchStats.avgSpeedKmh} KM/H</Text>
                 </View>
                 <View style={styles.metricBar}>
-                  <View style={[styles.metricBarFill, { width: '75%', backgroundColor: COLORS.accent }]} />
-                </View>
-                
-                <View style={[styles.metricRow, { marginTop: 16 }]}>
-                  <Text style={styles.metricName}>LINE CALL ACCURACY</Text>
-                  <Text style={styles.metricValue}>99.2%</Text>
-                </View>
-                <View style={styles.metricBar}>
-                  <View style={[styles.metricBarFill, { width: '99%', backgroundColor: COLORS.success }]} />
+                  <View style={[styles.metricBarFill, { width: '72%', backgroundColor: THEME.colors.electricBlue }]} />
                 </View>
 
                 <View style={[styles.metricRow, { marginTop: 16 }]}>
-                  <Text style={styles.metricName}>IN-COURT RATIO</Text>
+                  <Text style={styles.metricName}>HAWK-EYE SYSTEM ACCURACY</Text>
+                  <Text style={styles.metricValue}>99.4%</Text>
+                </View>
+                <View style={styles.metricBar}>
+                  <View style={[styles.metricBarFill, { width: '99%', backgroundColor: THEME.colors.neonGreen }]} />
+                </View>
+
+                <View style={[styles.metricRow, { marginTop: 16 }]}>
+                  <Text style={styles.metricName}>IN-COURT PERCENTAGE</Text>
                   <Text style={styles.metricValue}>
                     {matchStats.totalCalls > 0 ? Math.round((matchStats.inCount / matchStats.totalCalls) * 100) : 0}%
                   </Text>
@@ -1149,7 +1472,7 @@ export default function App() {
                       styles.metricBarFill,
                       {
                         width: `${matchStats.totalCalls > 0 ? (matchStats.inCount / matchStats.totalCalls) * 100 : 0}%`,
-                        backgroundColor: COLORS.primary,
+                        backgroundColor: THEME.colors.tennisVolt,
                       },
                     ]}
                   />
@@ -1157,67 +1480,77 @@ export default function App() {
               </View>
             </View>
 
-            {/* Action buttons */}
             <TouchableOpacity
               style={styles.statsBackBtn}
-              onPress={() => {
-                setCurrentPage('MATCH');
-              }}
+              onPress={() => setCurrentPage('MATCH')}
             >
-              <Text style={styles.statsBackBtnText}>BACK TO MATCH TRACKING</Text>
+              <Text style={styles.statsBackBtnText}>RESUME LIVE MATCH</Text>
             </TouchableOpacity>
           </ScrollView>
         )}
       </View>
 
-      {/* Navigation Footer */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.footerTab, currentPage === 'HOME' && styles.footerTabActive]}
-          onPress={() => setCurrentPage('HOME')}
-        >
-          <History size={20} color={currentPage === 'HOME' ? COLORS.primary : COLORS.textSecondary} />
-          <Text style={[styles.tabLabel, currentPage === 'HOME' && styles.tabLabelActive]}>Matches</Text>
-        </TouchableOpacity>
+      {/* Floating Glassmorphic Navigation Bar */}
+      <View style={styles.footerContainer}>
+        <View style={styles.footerGlass}>
+          <TouchableOpacity
+            style={[styles.footerTab, currentPage === 'HOME' && styles.footerTabActive]}
+            onPress={() => setCurrentPage('HOME')}
+          >
+            <History size={18} color={currentPage === 'HOME' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
+            <Text style={[styles.tabLabel, currentPage === 'HOME' && styles.tabLabelActive]}>Sessions</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.footerTab, currentPage === 'CALIBRATE' && styles.footerTabActive]}
-          onPress={() => setCurrentPage('CALIBRATE')}
-        >
-          <Sliders size={20} color={currentPage === 'CALIBRATE' ? COLORS.primary : COLORS.textSecondary} />
-          <Text style={[styles.tabLabel, currentPage === 'CALIBRATE' && styles.tabLabelActive]}>Calibrate</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.footerTab, currentPage === 'CALIBRATE' && styles.footerTabActive]}
+            onPress={() => setCurrentPage('CALIBRATE')}
+          >
+            <Sliders size={18} color={currentPage === 'CALIBRATE' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
+            <Text style={[styles.tabLabel, currentPage === 'CALIBRATE' && styles.tabLabelActive]}>Calibrate</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.footerTab, currentPage === 'MATCH' && styles.footerTabActive]}
-          onPress={() => setCurrentPage('MATCH')}
-        >
-          <Volume2 size={20} color={currentPage === 'MATCH' ? COLORS.primary : COLORS.textSecondary} />
-          <Text style={[styles.tabLabel, currentPage === 'MATCH' && styles.tabLabelActive]}>Live Track</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.footerTab, currentPage === 'MATCH' && styles.footerTabActive]}
+            onPress={() => setCurrentPage('MATCH')}
+          >
+            <Activity size={18} color={currentPage === 'MATCH' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
+            <Text style={[styles.tabLabel, currentPage === 'MATCH' && styles.tabLabelActive]}>Live HUD</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.footerTab, currentPage === 'REPLAY' && styles.footerTabActive]}
-          onPress={() => {
-            if (replayTrajectory.length === 0) {
-              Alert.alert("No Trajectory", "Simulate a live shot first to review replays.");
-              return;
-            }
-            setCurrentPage('REPLAY');
-          }}
-        >
-          <Activity size={20} color={currentPage === 'REPLAY' ? COLORS.primary : COLORS.textSecondary} />
-          <Text style={[styles.tabLabel, currentPage === 'REPLAY' && styles.tabLabelActive]}>Replay</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.footerTab, currentPage === 'REPLAY' && styles.footerTabActive]}
+            onPress={() => setCurrentPage('REPLAY')}
+          >
+            <ShieldAlert size={18} color={currentPage === 'REPLAY' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
+            <Text style={[styles.tabLabel, currentPage === 'REPLAY' && styles.tabLabelActive]}>Hawk-Eye</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.footerTab, currentPage === 'STATS' && styles.footerTabActive]}
-          onPress={() => setCurrentPage('STATS')}
-        >
-          <TrendingUp size={20} color={currentPage === 'STATS' ? COLORS.primary : COLORS.textSecondary} />
-          <Text style={[styles.tabLabel, currentPage === 'STATS' && styles.tabLabelActive]}>Stats</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.footerTab, currentPage === 'STATS' && styles.footerTabActive]}
+            onPress={() => setCurrentPage('STATS')}
+          >
+            <TrendingUp size={18} color={currentPage === 'STATS' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
+            <Text style={[styles.tabLabel, currentPage === 'STATS' && styles.tabLabelActive]}>Stats</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Hawk-Eye Challenge Modal */}
+      {lastBounce && (
+        <HawkEyeChallengeModal
+          visible={challengeModalVisible}
+          decision={lastBounce.decision}
+          offsetMm={lastBounce.offsetMm}
+          courtSurface={courtSurface}
+          challengingPlayer={challengingPlayer}
+          p1Name={scoreState.playerOneName}
+          p2Name={scoreState.playerTwoName}
+          p1Challenges={scoreState.p1Challenges}
+          p2Challenges={scoreState.p2Challenges}
+          onDismiss={() => setChallengeModalVisible(false)}
+          onApplyRuling={handleApplyChallengeRuling}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -1225,176 +1558,328 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: THEME.colors.background,
   },
   header: {
-    height: 52,
+    height: 56,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: THEME.colors.border,
+    backgroundColor: THEME.colors.surfaceGlass,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: THEME.spacing.lg,
     justifyContent: 'space-between',
   },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: THEME.radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    gap: 5,
+  },
+  livePulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: THEME.colors.neonRed,
+  },
+  liveText: {
+    color: THEME.colors.neonRed,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
   headerTitle: {
-    color: COLORS.text,
+    color: THEME.colors.textPrimary,
     fontSize: 16,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
-  badge: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  badgeText: {
-    color: '#000',
+  soundToggleBtn: {
+    padding: 6,
+    borderRadius: THEME.radius.sm,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+  },
+  surfaceTag: {
+    backgroundColor: THEME.colors.surfaceElevated,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: THEME.radius.sm,
+    borderWidth: 1,
+    borderColor: THEME.colors.borderGlow,
+  },
+  surfaceTagText: {
+    color: THEME.colors.tennisVolt,
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   mainContent: {
     flex: 1,
   },
   homeScroll: {
-    padding: 16,
+    padding: THEME.spacing.lg,
+    paddingBottom: 80,
   },
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
+  heroCard: {
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.xl,
+    padding: THEME.spacing.xl,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 16,
-    overflow: 'hidden',
+    borderColor: THEME.colors.borderGlow,
+    marginBottom: THEME.spacing.lg,
+    ...THEME.shadows.glowVolt,
   },
-  cardHeader: {
-    backgroundColor: COLORS.cardHeader,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  heroBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    gap: 6,
+    marginBottom: 8,
   },
-  cardHeaderText: {
-    color: COLORS.text,
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginLeft: 8,
-    letterSpacing: 0.5,
-  },
-  cardBody: {
-    padding: 16,
-  },
-  inputLabel: {
-    color: COLORS.textSecondary,
+  heroBadgeText: {
+    color: THEME.colors.tennisVolt,
     fontSize: 10,
-    fontWeight: 'bold',
-    marginBottom: 6,
-    letterSpacing: 0.5,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
-  textInput: {
-    backgroundColor: '#0F0F11',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    color: COLORS.text,
-    fontSize: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  heroHeading: {
+    color: THEME.colors.textPrimary,
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  heroSub: {
+    color: THEME.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
     marginBottom: 16,
   },
-  surfaceRow: {
+  heroButtonRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
+    gap: 10,
   },
-  surfaceBtn: {
+  newMatchActionBtn: {
     flex: 1,
-    backgroundColor: '#0F0F11',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  surfaceBtnActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  surfaceBtnText: {
-    color: COLORS.textSecondary,
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  surfaceBtnTextActive: {
-    color: '#000',
-  },
-  primaryBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    height: 44,
+    backgroundColor: THEME.colors.tennisVolt,
+    borderRadius: THEME.radius.md,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+    ...THEME.shadows.glowVolt,
   },
-  primaryBtnText: {
-    color: '#000',
-    fontWeight: 'bold',
-    fontSize: 14,
+  newMatchActionText: {
+    color: '#070A11',
+    fontWeight: '900',
+    fontSize: 13,
+    letterSpacing: 0.8,
+  },
+  instantDemoBtn: {
+    flex: 1,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderRadius: THEME.radius.md,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: THEME.colors.borderGlow,
+  },
+  instantDemoBtnText: {
+    color: THEME.colors.tennisVolt,
+    fontWeight: '900',
+    fontSize: 13,
+    letterSpacing: 0.8,
+  },
+  showcaseSection: {
+    marginBottom: THEME.spacing.xl,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    color: THEME.colors.tennisVolt,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  featureShowcaseCard: {
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.lg,
+    padding: THEME.spacing.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+    ...THEME.shadows.card,
+  },
+  featureIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(204, 255, 0, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  featureTitle: {
+    color: THEME.colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  badgeVolt: {
+    backgroundColor: 'rgba(204, 255, 0, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: THEME.radius.sm,
+  },
+  badgeVoltText: {
+    color: THEME.colors.tennisVolt,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  featureDesc: {
+    color: THEME.colors.textSecondary,
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  card: {
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.lg,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+    marginBottom: THEME.spacing.lg,
+    overflow: 'hidden',
+    ...THEME.shadows.card,
+  },
+  cardHeader: {
+    backgroundColor: THEME.colors.surfaceElevated,
+    paddingHorizontal: THEME.spacing.lg,
+    paddingVertical: THEME.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.colors.border,
+  },
+  cardHeaderText: {
+    color: THEME.colors.textPrimary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  emptyHistoryBox: {
+    padding: 30,
+    alignItems: 'center',
   },
   noHistoryText: {
-    color: COLORS.textSecondary,
-    fontSize: 13,
+    color: THEME.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  noHistorySub: {
+    color: THEME.colors.textMuted,
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
   },
   historyRow: {
-    paddingHorizontal: 16,
+    paddingHorizontal: THEME.spacing.lg,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: THEME.colors.divider,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   historyMatchTitle: {
-    color: COLORS.text,
+    color: THEME.colors.textPrimary,
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   historyMatchMeta: {
-    color: COLORS.textSecondary,
+    color: THEME.colors.textSecondary,
     fontSize: 10,
-    marginTop: 4,
+    marginTop: 3,
   },
   historyViewBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#262629',
-    borderRadius: 6,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderRadius: THEME.radius.sm,
     paddingVertical: 4,
     paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
   },
   historyViewText: {
-    color: COLORS.primary,
+    color: THEME.colors.tennisVolt,
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: '800',
     marginRight: 2,
+  },
+  historyDeleteBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: THEME.radius.sm,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearHistoryBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderRadius: THEME.radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  clearHistoryText: {
+    color: THEME.colors.neonRed,
+    fontSize: 9,
+    fontWeight: '900',
   },
   calibrateContainer: {
     flex: 1,
   },
   instructionBanner: {
-    backgroundColor: COLORS.cardHeader,
+    backgroundColor: THEME.colors.surfaceElevated,
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: THEME.spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: THEME.colors.border,
   },
   bannerText: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
+    color: THEME.colors.tennisVolt,
+    fontSize: 11,
+    fontWeight: '800',
     textAlign: 'center',
+    letterSpacing: 0.8,
   },
   cameraFrameView: {
     flex: 1,
@@ -1403,296 +1888,493 @@ const styles = StyleSheet.create({
   },
   dragAnchor: {
     position: 'absolute',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: COLORS.primary,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: THEME.colors.tennisVolt,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 3,
+    ...THEME.shadows.glowVolt,
   },
   anchorLabel: {
-    color: '#000',
-    fontWeight: 'bold',
-    fontSize: 12,
+    color: '#070A11',
+    fontWeight: '900',
+    fontSize: 13,
   },
   calibrateBtnRow: {
-    padding: 16,
+    padding: THEME.spacing.lg,
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    backgroundColor: COLORS.card,
+    borderTopColor: THEME.colors.border,
+    backgroundColor: THEME.colors.surface,
   },
   calibrateAutoBtn: {
     flex: 1,
-    backgroundColor: '#262629',
-    borderRadius: 8,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderRadius: THEME.radius.md,
     marginRight: 8,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+    paddingVertical: 12,
   },
   btnTextLight: {
-    color: COLORS.text,
-    fontWeight: 'bold',
-    fontSize: 13,
+    color: THEME.colors.textPrimary,
+    fontWeight: '800',
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
   calibrateConfirmBtn: {
-    flex: 1,
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
+    flex: 1.2,
+    backgroundColor: THEME.colors.tennisVolt,
+    borderRadius: THEME.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     paddingVertical: 12,
+    ...THEME.shadows.glowVolt,
+  },
+  primaryBtnText: {
+    color: '#070A11',
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 0.8,
+  },
+  permissionFallback: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000000',
+    padding: 24,
+  },
+  permissionText: {
+    color: THEME.colors.textSecondary,
+    marginBottom: 16,
+    marginTop: 8,
+    textAlign: 'center',
+    fontSize: 13,
+  },
+  grantBtn: {
+    backgroundColor: THEME.colors.tennisVolt,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: THEME.radius.md,
+  },
+  grantBtnText: {
+    color: '#070A11',
+    fontWeight: '900',
+    fontSize: 12,
   },
   matchContainer: {
     flex: 1,
   },
   cameraLiveFeed: {
     flex: 3,
-    backgroundColor: '#000',
+    backgroundColor: '#000000',
     position: 'relative',
   },
-  hudTopRight: {
+  hudTopBar: {
     position: 'absolute',
     top: 12,
     right: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
+    flexDirection: 'row',
+    gap: 8,
   },
-  hudMetaText: {
-    color: COLORS.primary,
-    fontSize: 9,
-    fontWeight: 'bold',
-    textAlign: 'right',
+  hudSpeedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: THEME.radius.sm,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+  },
+  hudSpeedText: {
+    color: THEME.colors.electricBlue,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  hudTimerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: THEME.radius.sm,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+  },
+  hudTimerText: {
+    color: THEME.colors.amberWarn,
+    fontSize: 11,
+    fontWeight: '900',
   },
   liveTrackingBanner: {
     position: 'absolute',
     top: 12,
     left: 12,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    backgroundColor: THEME.colors.tennisVolt,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: THEME.radius.sm,
     flexDirection: 'row',
     alignItems: 'center',
   },
   liveTrackingBannerText: {
-    color: '#000',
-    fontSize: 9,
-    fontWeight: 'bold',
+    color: '#070A11',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   decisionOverlay: {
     position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(28, 28, 30, 0.95)',
+    bottom: 16,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
     borderWidth: 2,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: THEME.radius.lg,
+    padding: THEME.spacing.md,
     alignItems: 'center',
+    ...THEME.shadows.card,
   },
   decisionTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '900',
-    letterSpacing: 2,
+    letterSpacing: 1.5,
   },
   decisionDistance: {
-    color: COLORS.text,
-    fontSize: 14,
-    marginTop: 4,
-    fontWeight: '600',
+    color: THEME.colors.textPrimary,
+    fontSize: 13,
+    marginTop: 2,
+    fontWeight: '700',
   },
-  matchControlsCard: {
-    flex: 1,
-    backgroundColor: COLORS.card,
+  matchBentoPanel: {
+    flex: 2.2,
+    backgroundColor: THEME.colors.surface,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    padding: 16,
-  },
-  matchControlsTitle: {
-    color: COLORS.textSecondary,
-    fontSize: 10,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  simBtnRow: {
-    flexDirection: 'row',
+    borderTopColor: THEME.colors.border,
+    padding: THEME.spacing.md,
     justifyContent: 'space-between',
   },
-  simBtn: {
-    flex: 1,
-    backgroundColor: '#0F0F11',
-    borderRadius: 8,
+  scoreboardCard: {
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderRadius: THEME.radius.md,
+    padding: THEME.spacing.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 6,
+    borderColor: THEME.colors.border,
   },
-  simBtnText: {
-    color: COLORS.success,
-    fontWeight: 'bold',
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  playerCol: {
+    flex: 1,
+  },
+  serverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  serveBall: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: THEME.colors.tennisVolt,
+  },
+  playerName: {
+    color: THEME.colors.textPrimary,
     fontSize: 13,
+    fontWeight: '800',
   },
-  replayContainer: {
+  challengePips: {
+    flexDirection: 'row',
+    gap: 3,
+    marginTop: 4,
+  },
+  pip: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  pipActive: {
+    backgroundColor: THEME.colors.neonGreen,
+  },
+  pipInactive: {
+    backgroundColor: THEME.colors.textMuted,
+    opacity: 0.3,
+  },
+  scoreStatsCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  setsText: {
+    color: THEME.colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '700',
+    minWidth: 16,
+    textAlign: 'center',
+  },
+  gamesText: {
+    color: THEME.colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '800',
+    minWidth: 18,
+    textAlign: 'center',
+  },
+  pointsText: {
+    color: THEME.colors.tennisVolt,
+    fontSize: 20,
+    fontWeight: '900',
+    minWidth: 32,
+    textAlign: 'center',
+  },
+  scoreDivider: {
+    height: 1,
+    backgroundColor: THEME.colors.divider,
+    marginVertical: 4,
+  },
+  scoreActionRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  scoreAddBtn: {
     flex: 1,
-    padding: 16,
-  },
-  zoomReplayFrame: {
-    flex: 3,
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
+    backgroundColor: THEME.colors.surface,
+    paddingVertical: 8,
+    borderRadius: THEME.radius.sm,
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 16,
+    borderColor: THEME.colors.border,
+  },
+  scoreAddBtnText: {
+    color: THEME.colors.tennisVolt,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  scoreResetBtn: {
+    padding: 8,
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.sm,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+  },
+  simActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  simActionBtn: {
+    flex: 1,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderRadius: THEME.radius.md,
+    borderWidth: 1,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
   },
-  replayZoomTitle: {
-    color: COLORS.textSecondary,
+  simActionBtnText: {
     fontSize: 11,
-    fontWeight: 'bold',
+    fontWeight: '900',
     letterSpacing: 0.5,
-    marginBottom: 16,
   },
-  zoomedCourtArea: {
-    position: 'relative',
-    borderRadius: 8,
-    overflow: 'hidden',
+  replayScroll: {
+    flex: 1,
+  },
+  replayToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: THEME.spacing.md,
+    gap: 8,
+  },
+  replaySurfaceTabs: {
+    flexDirection: 'row',
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.sm,
+    padding: 3,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: THEME.colors.border,
   },
-  baselineTag: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  replaySurfaceTab: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     borderRadius: 4,
   },
-  baselineTagText: {
-    color: '#000',
-    fontSize: 8,
-    fontWeight: 'bold',
+  replaySurfaceTabActive: {
+    backgroundColor: THEME.colors.surfaceElevated,
+  },
+  replaySurfaceTabText: {
+    color: THEME.colors.textMuted,
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  sampleCallToggles: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  sampleCallBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: THEME.radius.sm,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+  },
+  sampleCallBtnText: {
+    color: THEME.colors.textPrimary,
+    fontSize: 10,
+    fontWeight: '800',
   },
   scrubberCard: {
-    flex: 2,
-    marginTop: 16,
-  },
-  scrubberLabel: {
-    color: COLORS.textSecondary,
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  frameLabel: {
-    color: COLORS.primary,
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  sliderContainer: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.lg,
+    padding: THEME.spacing.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 16,
-    marginBottom: 12,
+    borderColor: THEME.colors.border,
+    marginBottom: THEME.spacing.md,
+  },
+  scrubberHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: THEME.spacing.md,
+  },
+  scrubberTitle: {
+    color: THEME.colors.textPrimary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  scrubberCount: {
+    color: THEME.colors.tennisVolt,
+    fontSize: 11,
+    fontWeight: '800',
   },
   sliderTrack: {
     height: 6,
-    backgroundColor: '#0F0F11',
+    backgroundColor: THEME.colors.surfaceElevated,
     borderRadius: 3,
     position: 'relative',
+    marginVertical: 10,
   },
   sliderFill: {
     height: '100%',
-    backgroundColor: COLORS.primary,
+    backgroundColor: THEME.colors.tennisVolt,
     borderRadius: 3,
   },
   sliderThumb: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#FFF',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
     position: 'absolute',
-    top: -4,
-    elevation: 3,
+    top: -5,
   },
   scrubButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 16,
+    gap: 6,
+    marginTop: 8,
   },
   scrubBtn: {
     flex: 1,
-    backgroundColor: '#262629',
-    borderRadius: 6,
-    paddingVertical: 8,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderRadius: THEME.radius.sm,
+    paddingVertical: 10,
     alignItems: 'center',
-    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
   },
   scrubBtnText: {
-    color: COLORS.text,
-    fontSize: 11,
-    fontWeight: 'bold',
+    color: THEME.colors.textPrimary,
+    fontSize: 10,
+    fontWeight: '800',
   },
-  replayDetails: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
+  radarCard: {
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.lg,
+    padding: THEME.spacing.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 16,
+    borderColor: THEME.colors.border,
+    marginBottom: THEME.spacing.xxxl,
   },
-  replayOutcome: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: 'bold',
+  radarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: THEME.spacing.md,
+  },
+  radarTitle: {
+    color: THEME.colors.electricBlue,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  radarMetricsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  radarMetric: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  radarMetricLabel: {
+    color: THEME.colors.textMuted,
+    fontSize: 9,
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
-  replayOffset: {
-    color: COLORS.textSecondary,
-    fontSize: 11,
+  radarMetricVal: {
+    color: THEME.colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  radarMetricSub: {
+    color: THEME.colors.textSecondary,
+    fontSize: 9,
     marginTop: 2,
   },
   statsScroll: {
-    padding: 16,
+    padding: THEME.spacing.lg,
+    paddingBottom: 80,
   },
   statsSummaryCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: THEME.colors.border,
     flexDirection: 'row',
     paddingVertical: 20,
-    marginBottom: 16,
+    marginBottom: THEME.spacing.lg,
+    ...THEME.shadows.card,
   },
   statsNumber: {
-    fontSize: 28,
-    color: COLORS.text,
+    fontSize: 30,
+    color: THEME.colors.textPrimary,
     fontWeight: '900',
   },
   statsLabel: {
-    color: COLORS.textSecondary,
+    color: THEME.colors.textMuted,
     fontSize: 9,
-    fontWeight: 'bold',
+    fontWeight: '800',
     marginTop: 4,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   divider: {
     width: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: THEME.colors.divider,
   },
   metricRow: {
     flexDirection: 'row',
@@ -1700,18 +2382,19 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   metricName: {
-    color: COLORS.textSecondary,
+    color: THEME.colors.textSecondary,
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   metricValue: {
-    color: COLORS.text,
+    color: THEME.colors.textPrimary,
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '900',
   },
   metricBar: {
     height: 8,
-    backgroundColor: '#0F0F11',
+    backgroundColor: THEME.colors.surfaceElevated,
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -1720,84 +2403,53 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statsBackBtn: {
-    backgroundColor: '#262629',
-    borderRadius: 8,
-    height: 44,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderRadius: THEME.radius.md,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
-    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
   },
   statsBackBtnText: {
-    color: COLORS.text,
-    fontWeight: 'bold',
-    fontSize: 13,
+    color: THEME.colors.tennisVolt,
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 0.8,
   },
-  footer: {
-    height: 58,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    backgroundColor: COLORS.card,
+  footerContainer: {
+    paddingHorizontal: THEME.spacing.lg,
+    paddingBottom: 10,
+    backgroundColor: THEME.colors.background,
+  },
+  footerGlass: {
+    height: 60,
+    borderRadius: THEME.radius.xl,
+    backgroundColor: THEME.colors.surfaceGlass,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
     flexDirection: 'row',
+    paddingHorizontal: 6,
+    ...THEME.shadows.card,
   },
   footerTab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
   },
   footerTabActive: {
-    borderTopWidth: 2,
-    borderTopColor: COLORS.primary,
+    borderRadius: THEME.radius.lg,
   },
   tabLabel: {
-    color: COLORS.textSecondary,
+    color: THEME.colors.textMuted,
     fontSize: 9,
-    fontWeight: 'bold',
-    marginTop: 4,
+    fontWeight: '700',
+    marginTop: 3,
   },
   tabLabelActive: {
-    color: COLORS.primary,
-  },
-  clearHistoryBtn: {
-    backgroundColor: '#3A1E1E',
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  clearHistoryText: {
-    color: '#FF453A',
-    fontSize: 9,
-    fontWeight: 'bold',
-  },
-  newMatchActionBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    marginBottom: 20,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-  },
-  newMatchActionText: {
-    color: '#000',
-    fontWeight: '900',
-    fontSize: 14,
-    letterSpacing: 1,
-  },
-  historyDeleteBtn: {
-    backgroundColor: '#2A1F1F',
-    borderRadius: 6,
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
+    color: THEME.colors.tennisVolt,
+    fontWeight: '800',
   },
   wizardOverlay: {
     position: 'absolute',
@@ -1805,32 +2457,33 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(18, 18, 20, 0.95)',
+    backgroundColor: 'rgba(7, 10, 17, 0.94)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
-    padding: 20,
+    padding: 16,
   },
   wizardCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.xl,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: THEME.colors.borderGlow,
     width: '100%',
-    maxHeight: '85%',
+    maxHeight: '88%',
     overflow: 'hidden',
-    padding: 20,
+    padding: THEME.spacing.lg,
+    ...THEME.shadows.glowVolt,
   },
   wizardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   wizardTitle: {
-    color: COLORS.primary,
+    color: THEME.colors.tennisVolt,
     fontWeight: '900',
-    fontSize: 14,
+    fontSize: 13,
     letterSpacing: 1,
   },
   wizardCloseBtn: {
@@ -1838,173 +2491,171 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    gap: 6,
+    marginBottom: 16,
   },
   progressStep: {
     flex: 1,
-    height: 4,
-    backgroundColor: '#262629',
-    marginHorizontal: 2,
+    height: 3,
+    backgroundColor: THEME.colors.surfaceElevated,
     borderRadius: 2,
   },
   progressStepActive: {
-    backgroundColor: COLORS.primary,
-  },
-  stepIndicatorText: {
-    color: COLORS.textSecondary,
-    fontSize: 10,
-    textAlign: 'center',
-    marginBottom: 16,
-    fontWeight: 'bold',
+    backgroundColor: THEME.colors.tennisVolt,
   },
   wizardStepContent: {
-    marginVertical: 10,
+    marginVertical: 6,
   },
   wizardStepTitle: {
-    color: COLORS.text,
+    color: THEME.colors.textPrimary,
     fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontWeight: '900',
+    marginBottom: 2,
   },
   wizardStepDesc: {
-    color: COLORS.textSecondary,
+    color: THEME.colors.textSecondary,
     fontSize: 12,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   wizardTypeRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
   },
   wizardTypeCard: {
     flex: 1,
-    backgroundColor: '#0F0F11',
-    borderRadius: 12,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderRadius: THEME.radius.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: THEME.colors.border,
     padding: 16,
     alignItems: 'center',
-    marginHorizontal: 6,
   },
   wizardTypeCardActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: '#1E250A',
+    borderColor: THEME.colors.tennisVolt,
+    backgroundColor: 'rgba(204, 255, 0, 0.08)',
   },
   wizardTypeTitle: {
-    color: COLORS.text,
+    color: THEME.colors.textPrimary,
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '800',
     marginTop: 8,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   wizardTypeTitleActive: {
-    color: COLORS.primary,
+    color: THEME.colors.tennisVolt,
   },
   wizardTypeDesc: {
-    color: COLORS.textSecondary,
-    fontSize: 9,
-    textAlign: 'center',
+    color: THEME.colors.textMuted,
+    fontSize: 10,
   },
   wizardInputLabel: {
-    color: COLORS.textSecondary,
-    fontSize: 9,
-    fontWeight: 'bold',
+    color: THEME.colors.textSecondary,
+    fontSize: 10,
+    fontWeight: '800',
     marginBottom: 6,
     letterSpacing: 0.5,
     marginTop: 8,
   },
   wizardInputGroupLabel: {
-    color: COLORS.primary,
+    color: THEME.colors.tennisVolt,
     fontSize: 11,
-    fontWeight: 'bold',
+    fontWeight: '800',
     marginTop: 12,
     marginBottom: 4,
     letterSpacing: 0.5,
   },
   wizardInput: {
-    backgroundColor: '#0F0F11',
-    borderRadius: 8,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderRadius: THEME.radius.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    color: COLORS.text,
-    fontSize: 14,
+    borderColor: THEME.colors.border,
+    color: THEME.colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '600',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
   },
-  wizardSurfaceRow: {
+  surfaceCardsCol: {
+    gap: 10,
+  },
+  surfaceSelectCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  wizardSurfaceBtn: {
-    flex: 1,
-    backgroundColor: '#0F0F11',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: 12,
     alignItems: 'center',
-    marginHorizontal: 4,
+    gap: 12,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderRadius: THEME.radius.md,
+    padding: THEME.spacing.md,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
   },
-  wizardSurfaceBtnActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+  surfaceSelectCardActive: {
+    borderColor: THEME.colors.tennisVolt,
+    backgroundColor: 'rgba(204, 255, 0, 0.08)',
   },
-  wizardSurfaceBtnText: {
-    color: COLORS.textSecondary,
-    fontSize: 11,
-    fontWeight: 'bold',
+  surfaceColorBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
   },
-  wizardSurfaceBtnTextActive: {
-    color: '#000',
+  surfaceSelectTitle: {
+    color: THEME.colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  surfaceSelectSub: {
+    color: THEME.colors.textMuted,
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 1,
   },
   wizardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 24,
+    marginTop: 16,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 16,
+    borderTopColor: THEME.colors.divider,
+    paddingTop: 14,
   },
   wizardBackBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    backgroundColor: '#262629',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: THEME.radius.sm,
+    backgroundColor: THEME.colors.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
   wizardBackBtnText: {
-    color: COLORS.text,
-    fontWeight: 'bold',
-    fontSize: 12,
+    color: THEME.colors.textPrimary,
+    fontWeight: '800',
+    fontSize: 11,
   },
   wizardNextBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    backgroundColor: '#FFF',
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: THEME.radius.sm,
+    backgroundColor: THEME.colors.textPrimary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   wizardNextBtnText: {
-    color: '#000',
-    fontWeight: 'bold',
-    fontSize: 12,
+    color: '#070A11',
+    fontWeight: '900',
+    fontSize: 11,
   },
   wizardStartBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: THEME.radius.sm,
+    backgroundColor: THEME.colors.tennisVolt,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+    ...THEME.shadows.glowVolt,
   },
   wizardStartBtnText: {
-    color: '#000',
-    fontWeight: 'bold',
-    fontSize: 12,
+    color: '#070A11',
+    fontWeight: '900',
+    fontSize: 11,
   },
 });
-
