@@ -228,7 +228,7 @@ export const SlowMoBallZoomPlayer: React.FC<SlowMoBallZoomPlayerProps> = ({
   }
 
   // Baseline and line reference near impact
-  const baselineY = (activeBounce.v ?? activeBounce.y * playerHeight) + (activeBounce.decision === 'IN' ? 8 : -8);
+  const baselineY = (activeBounce.v ?? ((activeBounce.y ?? 0) * playerHeight)) + (activeBounce.decision === 'IN' ? 8 : -8);
 
   return (
     <View style={[styles.container, { width: playerWidth }, style]} testID={testID}>

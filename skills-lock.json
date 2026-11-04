@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "rea-analysis-optimization": {
+      "source": "morluto/rea",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/rea-analysis-optimization/SKILL.md",
+      "computedHash": "a7d0fcdf9aaf9dbf30724c78c1087cd5f78d09169d96796a8376ce9681a8fe4f"
+    },
+    "rea-changelog-update": {
+      "source": "morluto/rea",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/rea-changelog-update/SKILL.md",
+      "computedHash": "9ee602e608081344dafc5901fbe3f6509197b245d482bc97203cb7c2afdb5b75"
+    },
+    "rea-ci-tests-audit": {
+      "source": "morluto/rea",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/rea-ci-tests-audit/SKILL.md",
+      "computedHash": "66bacc26230b7157e69add008656302b16b90df5c776130ce20fd6f5ef6ef8b6"
+    },
+    "rea-tool-design": {
+      "source": "morluto/rea",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/rea-tool-design/SKILL.md",
+      "computedHash": "0aa008d4057dc70be7ace5645107d725fe3c76d20c88b3fe4b8571d43fbdf116"
+    },
+    "reverse-engineer-anything": {
+      "source": "morluto/rea",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/reverse-engineer-anything/SKILL.md",
+      "computedHash": "71eab1f9e4f9f37510d39b3ba5c388125970435ff51df7ebe754c38651df5ebf"
+    }
+  }
+}

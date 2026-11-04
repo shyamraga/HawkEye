@@ -13,6 +13,7 @@ import {
   Alert,
   TextInput,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Line, Circle, Polyline, Rect, G } from 'react-native-svg';
 import * as Speech from 'expo-speech';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -39,6 +40,12 @@ import {
   Video,
   Eye,
   Layers,
+  Watch,
+  Scissors,
+  Share2,
+  Trophy,
+  Flame,
+  Download,
 } from 'lucide-react-native';
 
 import {
@@ -64,10 +71,26 @@ import { SpeedRadarEngine, SpeedTelemetry } from './src/services/speedRadarEngin
 import { HawkEyeChalkVisualizer } from './src/decision/components/HawkEyeChalkVisualizer';
 import { HawkEyeChallengeModal } from './src/decision/components/HawkEyeChallengeModal';
 import { SlowMoBallZoomPlayer } from './src/replay/components/SlowMoBallZoomPlayer';
+import { CourtHeatmapView } from './src/analytics/components/CourtHeatmapView';
+import { MatchHighlightsPlayer } from './src/replay/components/MatchHighlightsPlayer';
+import { MountCalibrationGuide } from './src/camera/components/MountCalibrationGuide';
+import { WatchCompanionModal } from './src/companion/components/WatchCompanionModal';
+import { BroadcastExportModal, ExportAspectRatio, ExportResolution } from './src/export/components/BroadcastExportModal';
+import { SkeletalCoachView } from './src/tracking/components/SkeletalCoachView';
+import {
+  ShotClassificationEngine,
+  ClassifiedShot,
+} from './src/services/shotClassificationEngine';
+import {
+  TrainingSessionType,
+  CameraMountType,
+  SESSION_MODES,
+  MOUNT_PRESETS,
+} from './src/services/sessionModes';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-type PageType = 'HOME' | 'CALIBRATE' | 'MATCH' | 'REPLAY' | 'STATS';
+type PageType = 'HOME' | 'CALIBRATE' | 'MATCH' | 'REPLAY' | 'HIGHLIGHTS' | 'STATS';
 
 // Pre-calculated regulation physical trajectories
 const trajectoryShotIn = [
@@ -135,11 +158,147 @@ const DEMO_OUT_BOUNCE = {
   offsetMm: -25,
 };
 
+const INITIAL_CLASSIFIED_SHOTS: ClassifiedShot[] = [
+  {
+    id: 'shot_1',
+    timestamp: Date.now() - 60000,
+    stroke: 'SERVE',
+    spin: 'flat',
+    spinRpm: 1050,
+    speedKmh: 198,
+    speedMph: 123,
+    apexMeters: 2.6,
+    depth: 'SHORT',
+    direction: 'DOWN_THE_LINE',
+    outcome: 'ACE',
+    hitter: 'PLAYER_ONE',
+    startPoint: { x: 4.1, y: 0.5, z: 2.8 },
+    bouncePoint: { x: 4.3, y: 17.5, z: 0 },
+    rallyIndex: 1,
+  },
+  {
+    id: 'shot_2',
+    timestamp: Date.now() - 50000,
+    stroke: 'FOREHAND',
+    spin: 'topspin',
+    spinRpm: 2850,
+    speedKmh: 154,
+    speedMph: 96,
+    apexMeters: 1.6,
+    depth: 'DEEP',
+    direction: 'CROSSCOURT',
+    outcome: 'WINNER',
+    hitter: 'PLAYER_ONE',
+    startPoint: { x: 5.8, y: 1.2, z: 1.0 },
+    bouncePoint: { x: 2.4, y: 21.8, z: 0 },
+    rallyIndex: 2,
+  },
+  {
+    id: 'shot_3',
+    timestamp: Date.now() - 40000,
+    stroke: 'BACKHAND',
+    spin: 'topspin',
+    spinRpm: 2420,
+    speedKmh: 138,
+    speedMph: 86,
+    apexMeters: 1.5,
+    depth: 'DEEP',
+    direction: 'DOWN_THE_LINE',
+    outcome: 'IN_PLAY',
+    hitter: 'PLAYER_TWO',
+    startPoint: { x: 2.2, y: 1.5, z: 1.0 },
+    bouncePoint: { x: 2.3, y: 20.6, z: 0 },
+    rallyIndex: 3,
+  },
+  {
+    id: 'shot_4',
+    timestamp: Date.now() - 30000,
+    stroke: 'FOREHAND',
+    spin: 'topspin',
+    spinRpm: 2600,
+    speedKmh: 146,
+    speedMph: 91,
+    apexMeters: 1.7,
+    depth: 'MEDIUM',
+    direction: 'INSIDE_OUT',
+    outcome: 'IN_PLAY',
+    hitter: 'PLAYER_ONE',
+    startPoint: { x: 3.2, y: 1.8, z: 1.1 },
+    bouncePoint: { x: 7.0, y: 19.2, z: 0 },
+    rallyIndex: 4,
+  },
+  {
+    id: 'shot_5',
+    timestamp: Date.now() - 20000,
+    stroke: 'VOLLEY',
+    spin: 'slice',
+    spinRpm: 1650,
+    speedKmh: 104,
+    speedMph: 65,
+    apexMeters: 1.2,
+    depth: 'SHORT',
+    direction: 'CROSSCOURT',
+    outcome: 'WINNER',
+    hitter: 'PLAYER_ONE',
+    startPoint: { x: 4.8, y: 10.2, z: 1.1 },
+    bouncePoint: { x: 7.2, y: 16.5, z: 0 },
+    rallyIndex: 5,
+  },
+  {
+    id: 'shot_6',
+    timestamp: Date.now() - 10000,
+    stroke: 'DROP_SHOT',
+    spin: 'slice',
+    spinRpm: 1900,
+    speedKmh: 68,
+    speedMph: 42,
+    apexMeters: 1.4,
+    depth: 'SHORT',
+    direction: 'CROSSCOURT',
+    outcome: 'WINNER',
+    hitter: 'PLAYER_ONE',
+    startPoint: { x: 5.0, y: 2.5, z: 1.0 },
+    bouncePoint: { x: 3.0, y: 13.8, z: 0 },
+    rallyIndex: 6,
+  },
+  {
+    id: 'shot_7',
+    timestamp: Date.now() - 5000,
+    stroke: 'FOREHAND',
+    spin: 'flat',
+    spinRpm: 1200,
+    speedKmh: 162,
+    speedMph: 101,
+    apexMeters: 1.3,
+    depth: 'OUT',
+    direction: 'DOWN_THE_LINE',
+    outcome: 'UNFORCED_ERROR',
+    hitter: 'PLAYER_TWO',
+    startPoint: { x: 6.2, y: 1.4, z: 1.1 },
+    bouncePoint: { x: 6.5, y: 24.2, z: 0 },
+    rallyIndex: 7,
+  },
+];
+
 export default function App() {
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [currentPage, setCurrentPage] = useState<PageType>('HOME');
   const [recentMatches, setRecentMatches] = useState<MatchRecord[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // SwingVision Session Mode & Mount Presets
+  const [sessionType, setSessionType] = useState<TrainingSessionType>('MATCH_PLAY');
+  const [mountType, setMountType] = useState<CameraMountType>('FENCE_MOUNT');
+  const [calibrationTab, setCalibrationTab] = useState<'HOMOGRAPHY' | 'MOUNT_GUIDE'>('HOMOGRAPHY');
+
+  // SwingVision Watch & Broadcast Export Modals
+  const [watchCompanionVisible, setWatchCompanionVisible] = useState(false);
+  const [exportModalVisible, setExportModalVisible] = useState(false);
+
+  // Shot Classification Engine & Classified History
+  const shotClassifier = useRef(new ShotClassificationEngine()).current;
+  const [classifiedShots, setClassifiedShots] = useState<ClassifiedShot[]>(INITIAL_CLASSIFIED_SHOTS);
 
   // New Match Setup State
   const [matchMode, setMatchMode] = useState<'singles' | 'doubles'>('singles');
@@ -735,6 +894,94 @@ export default function App() {
                     </Text>
                   </View>
                 </TouchableOpacity>
+
+                {/* Feature 5: AI Shot Classification & Court Heatmap (SwingVision) */}
+                <TouchableOpacity
+                  style={[styles.featureShowcaseCard, { borderColor: '#00F59B' }]}
+                  onPress={() => setCurrentPage('STATS')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(0, 245, 155, 0.15)' }]}>
+                    <TrendingUp size={22} color="#00F59B" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.featureHeaderRow}>
+                      <Text style={styles.featureTitle}>AI Shot Engine & Heatmap</Text>
+                      <View style={[styles.badgeVolt, { backgroundColor: 'rgba(0, 245, 155, 0.2)' }]}>
+                        <Text style={[styles.badgeVoltText, { color: '#00F59B' }]}>HEATMAP</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.featureDesc}>
+                      Automatic stroke classification (Serves, FH, BH, Volleys), spin RPM & interactive court sectors.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Feature 6: Smart Auto-Trim & Match Highlights (SwingVision) */}
+                <TouchableOpacity
+                  style={[styles.featureShowcaseCard, { borderColor: '#CCFF00' }]}
+                  onPress={() => setCurrentPage('HIGHLIGHTS')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(204, 255, 0, 0.15)' }]}>
+                    <Scissors size={22} color="#CCFF00" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.featureHeaderRow}>
+                      <Text style={styles.featureTitle}>Auto-Trim & Highlights</Text>
+                      <View style={[styles.badgeVolt, { backgroundColor: 'rgba(204, 255, 0, 0.2)' }]}>
+                        <Text style={[styles.badgeVoltText, { color: '#CCFF00' }]}>DEAD-TIME CUT</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.featureDesc}>
+                      Skips 80% dead-time between rallies with curated reels (Top Rallies, Aces & Break Points).
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Feature 7: Apple Watch Companion (SwingVision) */}
+                <TouchableOpacity
+                  style={[styles.featureShowcaseCard, { borderColor: '#00E5FF' }]}
+                  onPress={() => setWatchCompanionVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(0, 229, 255, 0.15)' }]}>
+                    <Watch size={22} color="#00E5FF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.featureHeaderRow}>
+                      <Text style={styles.featureTitle}>Apple Watch Companion</Text>
+                      <View style={[styles.badgeVolt, { backgroundColor: 'rgba(0, 229, 255, 0.2)' }]}>
+                        <Text style={[styles.badgeVoltText, { color: '#00E5FF' }]}>WATCH LIVE</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.featureDesc}>
+                      Wrist scoreboard, tap-to-score buttons, remote Hawk-Eye challenge & HealthKit biometrics.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Feature 8: TV Broadcast Video Export Studio (SwingVision) */}
+                <TouchableOpacity
+                  style={[styles.featureShowcaseCard, { borderColor: '#F59E0B' }]}
+                  onPress={() => setExportModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+                    <Share2 size={22} color="#F59E0B" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.featureHeaderRow}>
+                      <Text style={styles.featureTitle}>Broadcast Export Studio</Text>
+                      <View style={[styles.badgeVolt, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
+                        <Text style={[styles.badgeVoltText, { color: '#F59E0B' }]}>9:16 / 16:9</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.featureDesc}>
+                      Render video clips for TikTok, YouTube & TV with TV scorebugs, speed radar & 3D tracer.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
               </View>
 
               {/* Match History Card */}
@@ -1012,77 +1259,110 @@ export default function App() {
         {/* ===================== CALIBRATE SCREEN ===================== */}
         {currentPage === 'CALIBRATE' && (
           <View style={styles.calibrateContainer}>
-            <View style={styles.instructionBanner}>
-              <Text style={styles.bannerText}>
-                ALIGN ANCHORS (1–4) TO THE SINGLES COURT CORNERS
-              </Text>
+            {/* Top Calibration Tab Switcher */}
+            <View style={styles.calibTabRow}>
+              <TouchableOpacity
+                style={[styles.calibTabBtn, calibrationTab === 'HOMOGRAPHY' && styles.calibTabBtnActive]}
+                onPress={() => setCalibrationTab('HOMOGRAPHY')}
+              >
+                <Sliders size={13} color={calibrationTab === 'HOMOGRAPHY' ? '#070A11' : THEME.colors.textSecondary} />
+                <Text style={[styles.calibTabText, calibrationTab === 'HOMOGRAPHY' && styles.calibTabTextActive]}>
+                  CORNER ANCHORS
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.calibTabBtn, calibrationTab === 'MOUNT_GUIDE' && styles.calibTabBtnActive]}
+                onPress={() => setCalibrationTab('MOUNT_GUIDE')}
+              >
+                <Camera size={13} color={calibrationTab === 'MOUNT_GUIDE' ? '#070A11' : THEME.colors.textSecondary} />
+                <Text style={[styles.calibTabText, calibrationTab === 'MOUNT_GUIDE' && styles.calibTabTextActive]}>
+                  MOUNT PRESETS GUIDE
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.cameraFrameView}>
-              {!permission?.granted ? (
-                <View style={styles.permissionFallback}>
-                  <Camera size={36} color={THEME.colors.tennisVolt} />
-                  <Text style={styles.permissionText}>
-                    Camera access enables live court line detection. Default calibration is active!
+            {calibrationTab === 'MOUNT_GUIDE' ? (
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 80 }}>
+                <MountCalibrationGuide
+                  activePreset={mountType}
+                  onSelectPreset={setMountType}
+                />
+              </ScrollView>
+            ) : (
+              <>
+                <View style={styles.instructionBanner}>
+                  <Text style={styles.bannerText}>
+                    ALIGN ANCHORS (1–4) TO THE SINGLES COURT CORNERS
                   </Text>
+                </View>
+
+                <View style={styles.cameraFrameView}>
+                  {!permission?.granted ? (
+                    <View style={styles.permissionFallback}>
+                      <Camera size={36} color={THEME.colors.tennisVolt} />
+                      <Text style={styles.permissionText}>
+                        Camera access enables live court line detection. Default calibration is active!
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.grantBtn}
+                        onPress={async () => {
+                          try {
+                            await requestPermission();
+                          } catch (err: any) {
+                            Alert.alert("Permission Error", err?.message || "Unknown error");
+                          }
+                        }}
+                      >
+                        <Text style={styles.grantBtnText}>GRANT CAMERA ACCESS</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <>
+                      <CameraView style={StyleSheet.absoluteFill} facing="back" />
+                      <Svg style={StyleSheet.absoluteFill}>
+                        <Line x1={anchor1.x} y1={anchor1.y} x2={anchor2.x} y2={anchor2.y} stroke={THEME.colors.tennisVolt} strokeWidth={2} strokeDasharray="6,4" />
+                        <Line x1={anchor2.x} y1={anchor2.y} x2={anchor4.x} y2={anchor4.y} stroke={THEME.colors.tennisVolt} strokeWidth={2} strokeDasharray="6,4" />
+                        <Line x1={anchor3.x} y1={anchor3.y} x2={anchor4.x} y2={anchor4.y} stroke={THEME.colors.tennisVolt} strokeWidth={2} strokeDasharray="6,4" />
+                        <Line x1={anchor1.x} y1={anchor1.y} x2={anchor3.x} y2={anchor3.y} stroke={THEME.colors.tennisVolt} strokeWidth={2} strokeDasharray="6,4" />
+                      </Svg>
+
+                      <Animated.View style={[styles.dragAnchor, { left: anchor1.x - 16, top: anchor1.y - 16 }]} {...panResponder1.panHandlers}>
+                        <Text style={styles.anchorLabel}>1</Text>
+                      </Animated.View>
+                      <Animated.View style={[styles.dragAnchor, { left: anchor2.x - 16, top: anchor2.y - 16 }]} {...panResponder2.panHandlers}>
+                        <Text style={styles.anchorLabel}>2</Text>
+                      </Animated.View>
+                      <Animated.View style={[styles.dragAnchor, { left: anchor3.x - 16, top: anchor3.y - 16 }]} {...panResponder3.panHandlers}>
+                        <Text style={styles.anchorLabel}>3</Text>
+                      </Animated.View>
+                      <Animated.View style={[styles.dragAnchor, { left: anchor4.x - 16, top: anchor4.y - 16 }]} {...panResponder4.panHandlers}>
+                        <Text style={styles.anchorLabel}>4</Text>
+                      </Animated.View>
+                    </>
+                  )}
+                </View>
+
+                <View style={styles.calibrateBtnRow}>
                   <TouchableOpacity
-                    style={styles.grantBtn}
-                    onPress={async () => {
-                      try {
-                        await requestPermission();
-                      } catch (err: any) {
-                        Alert.alert("Permission Error", err?.message || "Unknown error");
-                      }
+                    style={styles.calibrateAutoBtn}
+                    onPress={() => {
+                      setAnchor1({ x: 95, y: 155 });
+                      setAnchor2({ x: SCREEN_WIDTH - 95, y: 155 });
+                      setAnchor3({ x: 30, y: SCREEN_HEIGHT - 310 });
+                      setAnchor4({ x: SCREEN_WIDTH - 30, y: SCREEN_HEIGHT - 310 });
                     }}
                   >
-                    <Text style={styles.grantBtnText}>GRANT CAMERA ACCESS</Text>
+                    <Sliders size={16} color={THEME.colors.textPrimary} style={{ marginRight: 6 }} />
+                    <Text style={styles.btnTextLight}>AUTO-ALIGN</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.calibrateConfirmBtn} onPress={handleConfirmCalibration}>
+                    <Camera size={16} color="#070A11" style={{ marginRight: 6 }} />
+                    <Text style={styles.primaryBtnText}>LOCK BOUNDARIES</Text>
                   </TouchableOpacity>
                 </View>
-              ) : (
-                <>
-                  <CameraView style={StyleSheet.absoluteFill} facing="back" />
-                  <Svg style={StyleSheet.absoluteFill}>
-                    <Line x1={anchor1.x} y1={anchor1.y} x2={anchor2.x} y2={anchor2.y} stroke={THEME.colors.tennisVolt} strokeWidth={2} strokeDasharray="6,4" />
-                    <Line x1={anchor2.x} y1={anchor2.y} x2={anchor4.x} y2={anchor4.y} stroke={THEME.colors.tennisVolt} strokeWidth={2} strokeDasharray="6,4" />
-                    <Line x1={anchor3.x} y1={anchor3.y} x2={anchor4.x} y2={anchor4.y} stroke={THEME.colors.tennisVolt} strokeWidth={2} strokeDasharray="6,4" />
-                    <Line x1={anchor1.x} y1={anchor1.y} x2={anchor3.x} y2={anchor3.y} stroke={THEME.colors.tennisVolt} strokeWidth={2} strokeDasharray="6,4" />
-                  </Svg>
-
-                  <Animated.View style={[styles.dragAnchor, { left: anchor1.x - 16, top: anchor1.y - 16 }]} {...panResponder1.panHandlers}>
-                    <Text style={styles.anchorLabel}>1</Text>
-                  </Animated.View>
-                  <Animated.View style={[styles.dragAnchor, { left: anchor2.x - 16, top: anchor2.y - 16 }]} {...panResponder2.panHandlers}>
-                    <Text style={styles.anchorLabel}>2</Text>
-                  </Animated.View>
-                  <Animated.View style={[styles.dragAnchor, { left: anchor3.x - 16, top: anchor3.y - 16 }]} {...panResponder3.panHandlers}>
-                    <Text style={styles.anchorLabel}>3</Text>
-                  </Animated.View>
-                  <Animated.View style={[styles.dragAnchor, { left: anchor4.x - 16, top: anchor4.y - 16 }]} {...panResponder4.panHandlers}>
-                    <Text style={styles.anchorLabel}>4</Text>
-                  </Animated.View>
-                </>
-              )}
-            </View>
-
-            <View style={styles.calibrateBtnRow}>
-              <TouchableOpacity
-                style={styles.calibrateAutoBtn}
-                onPress={() => {
-                  setAnchor1({ x: 95, y: 155 });
-                  setAnchor2({ x: SCREEN_WIDTH - 95, y: 155 });
-                  setAnchor3({ x: 30, y: SCREEN_HEIGHT - 310 });
-                  setAnchor4({ x: SCREEN_WIDTH - 30, y: SCREEN_HEIGHT - 310 });
-                }}
-              >
-                <Sliders size={16} color={THEME.colors.textPrimary} style={{ marginRight: 6 }} />
-                <Text style={styles.btnTextLight}>AUTO-ALIGN</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.calibrateConfirmBtn} onPress={handleConfirmCalibration}>
-                <Camera size={16} color="#070A11" style={{ marginRight: 6 }} />
-                <Text style={styles.primaryBtnText}>LOCK BOUNDARIES</Text>
-              </TouchableOpacity>
-            </View>
+              </>
+            )}
           </View>
         )}
 
@@ -1318,6 +1598,36 @@ export default function App() {
                   <Text style={[styles.simActionBtnText, { color: THEME.colors.purpleAccent }]}>CHALLENGE</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* SwingVision Pro Utilities Bar */}
+              <View style={styles.hudQuickActionsRow}>
+                <TouchableOpacity
+                  style={styles.hudQuickBtn}
+                  onPress={() => setWatchCompanionVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Watch size={13} color="#00E5FF" />
+                  <Text style={[styles.hudQuickBtnText, { color: '#00E5FF' }]}>APPLE WATCH</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.hudQuickBtn}
+                  onPress={() => setCurrentPage('HIGHLIGHTS')}
+                  activeOpacity={0.8}
+                >
+                  <Sparkles size={13} color="#CCFF00" />
+                  <Text style={[styles.hudQuickBtnText, { color: '#CCFF00' }]}>AUTO-TRIM</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.hudQuickBtn}
+                  onPress={() => setExportModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Share2 size={13} color="#00F59B" />
+                  <Text style={[styles.hudQuickBtnText, { color: '#00F59B' }]}>BROADCAST</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
@@ -1463,7 +1773,19 @@ export default function App() {
           </ScrollView>
         )}
 
-        {/* ===================== STATS SCREEN ===================== */}
+        {/* ===================== HIGHLIGHTS SCREEN ===================== */}
+        {currentPage === 'HIGHLIGHTS' && (
+          <View style={{ flex: 1 }}>
+            <MatchHighlightsPlayer
+              playerOneName={scoreState.playerOneName}
+              playerTwoName={scoreState.playerTwoName}
+              matchScore={`${scoreState.playerOneSets}-${scoreState.playerTwoSets}`}
+              onExportVideo={() => setExportModalVisible(true)}
+            />
+          </View>
+        )}
+
+        {/* ===================== STATS / HEATMAP SCREEN ===================== */}
         {currentPage === 'STATS' && (
           <ScrollView contentContainerStyle={styles.statsScroll}>
             {/* Summary Counters */}
@@ -1483,6 +1805,13 @@ export default function App() {
                 <Text style={[styles.statsLabel, { color: THEME.colors.neonRed }]}>OUT SHOTS</Text>
               </View>
             </View>
+
+            {/* SwingVision Interactive Court Landing Heatmap */}
+            <CourtHeatmapView
+              shots={classifiedShots}
+              playerOneName={scoreState.playerOneName}
+              playerTwoName={scoreState.playerTwoName}
+            />
 
             {/* Performance Analytics Card */}
             <View style={styles.card}>
@@ -1537,14 +1866,14 @@ export default function App() {
         )}
       </View>
 
-      {/* Floating Glassmorphic Navigation Bar */}
-      <View style={styles.footerContainer}>
+      {/* Floating Glassmorphic Navigation Bar (6 Tabs) */}
+      <View style={[styles.footerContainer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         <View style={styles.footerGlass}>
           <TouchableOpacity
             style={[styles.footerTab, currentPage === 'HOME' && styles.footerTabActive]}
             onPress={() => setCurrentPage('HOME')}
           >
-            <History size={18} color={currentPage === 'HOME' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
+            <History size={16} color={currentPage === 'HOME' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
             <Text style={[styles.tabLabel, currentPage === 'HOME' && styles.tabLabelActive]}>Sessions</Text>
           </TouchableOpacity>
 
@@ -1552,7 +1881,7 @@ export default function App() {
             style={[styles.footerTab, currentPage === 'CALIBRATE' && styles.footerTabActive]}
             onPress={() => setCurrentPage('CALIBRATE')}
           >
-            <Sliders size={18} color={currentPage === 'CALIBRATE' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
+            <Sliders size={16} color={currentPage === 'CALIBRATE' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
             <Text style={[styles.tabLabel, currentPage === 'CALIBRATE' && styles.tabLabelActive]}>Calibrate</Text>
           </TouchableOpacity>
 
@@ -1560,7 +1889,7 @@ export default function App() {
             style={[styles.footerTab, currentPage === 'MATCH' && styles.footerTabActive]}
             onPress={() => setCurrentPage('MATCH')}
           >
-            <Activity size={18} color={currentPage === 'MATCH' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
+            <Activity size={16} color={currentPage === 'MATCH' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
             <Text style={[styles.tabLabel, currentPage === 'MATCH' && styles.tabLabelActive]}>Live HUD</Text>
           </TouchableOpacity>
 
@@ -1568,16 +1897,24 @@ export default function App() {
             style={[styles.footerTab, currentPage === 'REPLAY' && styles.footerTabActive]}
             onPress={() => setCurrentPage('REPLAY')}
           >
-            <ShieldAlert size={18} color={currentPage === 'REPLAY' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
+            <ShieldAlert size={16} color={currentPage === 'REPLAY' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
             <Text style={[styles.tabLabel, currentPage === 'REPLAY' && styles.tabLabelActive]}>Hawk-Eye</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.footerTab, currentPage === 'HIGHLIGHTS' && styles.footerTabActive]}
+            onPress={() => setCurrentPage('HIGHLIGHTS')}
+          >
+            <Sparkles size={16} color={currentPage === 'HIGHLIGHTS' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
+            <Text style={[styles.tabLabel, currentPage === 'HIGHLIGHTS' && styles.tabLabelActive]}>Reels</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.footerTab, currentPage === 'STATS' && styles.footerTabActive]}
             onPress={() => setCurrentPage('STATS')}
           >
-            <TrendingUp size={18} color={currentPage === 'STATS' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
-            <Text style={[styles.tabLabel, currentPage === 'STATS' && styles.tabLabelActive]}>Stats</Text>
+            <TrendingUp size={16} color={currentPage === 'STATS' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
+            <Text style={[styles.tabLabel, currentPage === 'STATS' && styles.tabLabelActive]}>Heatmap</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1598,6 +1935,32 @@ export default function App() {
           onApplyRuling={handleApplyChallengeRuling}
         />
       )}
+
+      {/* SwingVision Apple Watch Remote Companion */}
+      <WatchCompanionModal
+        visible={watchCompanionVisible}
+        scoreState={scoreState}
+        playerOneName={scoreState.playerOneName}
+        playerTwoName={scoreState.playerTwoName}
+        lastServeSpeedKmh={speedTelemetry.currentKmh}
+        onScorePoint={handleScorePoint}
+        onUndoPoint={() => {}}
+        onTriggerChallenge={handleOpenChallenge}
+        onClose={() => setWatchCompanionVisible(false)}
+      />
+
+      {/* SwingVision Broadcast Video Export Studio */}
+      <BroadcastExportModal
+        visible={exportModalVisible}
+        playerOneName={scoreState.playerOneName}
+        playerTwoName={scoreState.playerTwoName}
+        matchScore={`${scoreState.playerOneSets}-${scoreState.playerTwoSets}`}
+        serveSpeedKmh={speedTelemetry.currentKmh}
+        onClose={() => setExportModalVisible(false)}
+        onExportComplete={(ar, res) => {
+          Alert.alert("Export Ready", `Broadcast video rendered in ${ar} (${res})!`);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -1842,6 +2205,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.8,
   },
+  cardBody: {
+    padding: THEME.spacing.lg,
+  },
   emptyHistoryBox: {
     padding: 30,
     alignItems: 'center',
@@ -1913,6 +2279,39 @@ const styles = StyleSheet.create({
   },
   calibrateContainer: {
     flex: 1,
+  },
+  calibTabRow: {
+    flexDirection: 'row',
+    backgroundColor: THEME.colors.surface,
+    padding: 6,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.colors.border,
+  },
+  calibTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: THEME.radius.sm,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+  },
+  calibTabBtnActive: {
+    backgroundColor: THEME.colors.tennisVolt,
+    borderColor: THEME.colors.tennisVolt,
+  },
+  calibTabText: {
+    color: THEME.colors.textMuted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  calibTabTextActive: {
+    color: '#070A11',
   },
   instructionBanner: {
     backgroundColor: THEME.colors.surfaceElevated,
@@ -2233,6 +2632,28 @@ const styles = StyleSheet.create({
   simActionBtnText: {
     fontSize: 11,
     fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  hudQuickActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  hudQuickBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: THEME.radius.sm,
+    backgroundColor: THEME.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: THEME.colors.border,
+  },
+  hudQuickBtnText: {
+    fontSize: 9,
+    fontWeight: '800',
     letterSpacing: 0.5,
   },
   replayScroll: {

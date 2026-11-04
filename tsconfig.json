@@ -5,5 +5,10 @@
     "jsx": "react-native",
     "esModuleInterop": true,
     "skipLibCheck": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "**/__tests__/*",
+    "__mocks__"
+  ]
 }

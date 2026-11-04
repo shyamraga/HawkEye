@@ -12,4 +12,7 @@ export const RadialGradient = (props: any) => <div data-testid="mock-radialgradi
 export const Stop = (props: any) => <div data-testid="mock-stop" {...props} />;
 export const G = (props: any) => <div data-testid="mock-g" {...props} />;
 export const Polygon = (props: any) => <div data-testid="mock-polygon" {...props} />;
+export const Polyline = (props: any) => <div data-testid="mock-polyline" {...props} />;
+export const LinearGradient = (props: any) => <div data-testid="mock-lineargradient" {...props} />;
+export const ClipPath = (props: any) => <div data-testid="mock-clippath" {...props} />;
 export default Svg;
