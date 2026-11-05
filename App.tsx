@@ -13,7 +13,7 @@ import {
   Alert,
   TextInput,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
 import Svg, { Line, Circle, Polyline, Rect, G } from 'react-native-svg';
 import * as Speech from 'expo-speech';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -699,6 +699,7 @@ export default function App() {
   };
 
   return (
+    <SafeAreaProvider>
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={THEME.colors.background} />
 
@@ -1962,6 +1963,7 @@ export default function App() {
         }}
       />
     </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
