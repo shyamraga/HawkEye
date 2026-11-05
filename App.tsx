@@ -13,7 +13,7 @@ import {
   Alert,
   TextInput,
 } from 'react-native';
-import { useSafeAreaInsets, SafeAreaProvider } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import Svg, { Line, Circle, Polyline, Rect, G } from 'react-native-svg';
 import * as Speech from 'expo-speech';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -282,7 +282,45 @@ const INITIAL_CLASSIFIED_SHOTS: ClassifiedShot[] = [
   },
 ];
 
-export default function App() {
+class RootErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('App launch error caught by RootErrorBoundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#070A11', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Text style={{ color: '#00F0FF', fontSize: 20, fontWeight: 'bold', marginBottom: 12 }}>Owl Vision Recovery</Text>
+          <Text style={{ color: '#F1F5F9', fontSize: 14, textAlign: 'center', marginBottom: 20 }}>
+            {this.state.error?.message || 'An unexpected error occurred while starting the app.'}
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: '#CCFF00', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 }}
+            onPress={() => this.setState({ hasError: false, error: null })}
+          >
+            <Text style={{ color: '#070A11', fontWeight: 'bold' }}>RETRY</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function MainApp() {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [currentPage, setCurrentPage] = useState<PageType>('HOME');
@@ -701,7 +739,6 @@ export default function App() {
   };
 
   return (
-    <SafeAreaProvider>
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={THEME.colors.background} />
 
@@ -1965,6 +2002,20 @@ export default function App() {
         }}
       />
     </SafeAreaView>
+  );
+}
+
+export default function App() {
+  const defaultMetrics = initialWindowMetrics ?? {
+    frame: { x: 0, y: 0, width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
+    insets: { top: 0, left: 0, right: 0, bottom: 0 },
+  };
+
+  return (
+    <SafeAreaProvider initialMetrics={defaultMetrics}>
+      <RootErrorBoundary>
+        <MainApp />
+      </RootErrorBoundary>
     </SafeAreaProvider>
   );
 }
