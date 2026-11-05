@@ -88,7 +88,9 @@ import {
   MOUNT_PRESETS,
 } from './src/services/sessionModes';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const initialWindow = Dimensions.get('window');
+const SCREEN_WIDTH = initialWindow?.width > 0 ? initialWindow.width : 390;
+const SCREEN_HEIGHT = initialWindow?.height > 0 ? initialWindow.height : 844;
 
 type PageType = 'HOME' | 'CALIBRATE' | 'MATCH' | 'REPLAY' | 'HIGHLIGHTS' | 'STATS';
 
