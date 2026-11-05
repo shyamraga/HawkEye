@@ -46,6 +46,7 @@ import {
   Trophy,
   Flame,
   Download,
+  Award,
 } from 'lucide-react-native';
 
 import {
@@ -77,6 +78,7 @@ import { MountCalibrationGuide } from './src/camera/components/MountCalibrationG
 import { WatchCompanionModal } from './src/companion/components/WatchCompanionModal';
 import { BroadcastExportModal, ExportAspectRatio, ExportResolution } from './src/export/components/BroadcastExportModal';
 import { SkeletalCoachView } from './src/tracking/components/SkeletalCoachView';
+import { SwingVisionCoachView } from './src/coaching/components/SwingVisionCoachView';
 import {
   ShotClassificationEngine,
   ClassifiedShot,
@@ -92,7 +94,7 @@ const initialWindow = Dimensions.get('window');
 const SCREEN_WIDTH = initialWindow?.width > 0 ? initialWindow.width : 390;
 const SCREEN_HEIGHT = initialWindow?.height > 0 ? initialWindow.height : 844;
 
-type PageType = 'HOME' | 'CALIBRATE' | 'MATCH' | 'REPLAY' | 'HIGHLIGHTS' | 'STATS';
+type PageType = 'HOME' | 'CALIBRATE' | 'MATCH' | 'REPLAY' | 'COACH' | 'HIGHLIGHTS' | 'STATS';
 
 // Pre-calculated regulation physical trajectories
 const trajectoryShotIn = [
@@ -327,6 +329,29 @@ function MainApp() {
   const [recentMatches, setRecentMatches] = useState<MatchRecord[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
 
+  // Fluid Animated Screen Transitions
+  const pageFadeAnim = useRef(new Animated.Value(1)).current;
+  const pageTranslateY = useRef(new Animated.Value(0)).current;
+
+  const navigateToPage = (newPage: PageType) => {
+    if (newPage === currentPage) return;
+    setCurrentPage(newPage);
+    pageFadeAnim.setValue(0.25);
+    pageTranslateY.setValue(6);
+    Animated.parallel([
+      Animated.timing(pageFadeAnim, {
+        toValue: 1,
+        duration: 160,
+        useNativeDriver: true,
+      }),
+      Animated.timing(pageTranslateY, {
+        toValue: 0,
+        duration: 160,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   // SwingVision Session Mode & Mount Presets
   const [sessionType, setSessionType] = useState<TrainingSessionType>('MATCH_PLAY');
   const [mountType, setMountType] = useState<CameraMountType>('FENCE_MOUNT');
@@ -511,7 +536,7 @@ function MainApp() {
       calibration.computeHomography(srcPts, dstPts);
       setCalibrated(true);
       Alert.alert("Court Calibrated", "Hawk-Eye Homography matrix successfully computed.");
-      setCurrentPage('MATCH');
+      navigateToPage('MATCH');
     } catch {
       Alert.alert("Calibration Error", "Failed to compute calibration homography.");
     }
@@ -540,7 +565,7 @@ function MainApp() {
     setActiveMatchId(matchId);
     setShowSetupWizard(false);
     setWizardStep(1);
-    setCurrentPage('MATCH');
+    navigateToPage('MATCH');
 
     try {
       await saveMatch(newMatch);
@@ -773,7 +798,7 @@ function MainApp() {
       </View>
 
       {/* Main Pages Router */}
-      <View style={styles.mainContent}>
+      <Animated.View style={[styles.mainContent, { opacity: pageFadeAnim, transform: [{ translateY: pageTranslateY }] }]}>
         {/* ===================== HOME SCREEN ===================== */}
         {currentPage === 'HOME' && (
           <View style={{ flex: 1 }}>
@@ -806,7 +831,7 @@ function MainApp() {
 
                   <TouchableOpacity
                     style={styles.instantDemoBtn}
-                    onPress={() => setCurrentPage('MATCH')}
+                    onPress={() => navigateToPage('MATCH')}
                     activeOpacity={0.85}
                   >
                     <Activity size={18} color={THEME.colors.tennisVolt} style={{ marginRight: 6 }} />
@@ -822,12 +847,34 @@ function MainApp() {
                   <Text style={styles.sectionTitle}>ALL TENNIS PRO FEATURES</Text>
                 </View>
 
+                {/* Feature: SwingVision AI Coach & Tactical Strategy */}
+                <TouchableOpacity
+                  style={[styles.featureShowcaseCard, { borderColor: THEME.colors.neonGreen }]}
+                  onPress={() => navigateToPage('COACH')}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(0, 245, 155, 0.15)' }]}>
+                    <Award size={22} color={THEME.colors.neonGreen} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.featureHeaderRow}>
+                      <Text style={styles.featureTitle}>SwingVision AI Coach & Tactics</Text>
+                      <View style={[styles.badgeVolt, { backgroundColor: 'rgba(0, 245, 155, 0.2)' }]}>
+                        <Text style={[styles.badgeVoltText, { color: THEME.colors.neonGreen }]}>AI CUES</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.featureDesc}>
+                      Win/loss attribution, serve placement hot zones, tactical rally patterns & real-time audio voice coaching.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
                 {/* Feature 0: Slow-Motion Ball Zoom Replay (240 FPS) */}
                 <TouchableOpacity
                   style={[styles.featureShowcaseCard, { borderColor: THEME.colors.tennisVolt }]}
                   onPress={() => {
                     setReplayViewMode('ballZoom');
-                    setCurrentPage('REPLAY');
+                    navigateToPage('REPLAY');
                   }}
                   activeOpacity={0.8}
                 >
@@ -850,7 +897,7 @@ function MainApp() {
                 {/* Feature 1: Hawk-Eye Chalk Line Zoom */}
                 <TouchableOpacity
                   style={styles.featureShowcaseCard}
-                  onPress={() => setCurrentPage('REPLAY')}
+                  onPress={() => navigateToPage('REPLAY')}
                   activeOpacity={0.8}
                 >
                   <View style={styles.featureIconBadge}>
@@ -872,7 +919,7 @@ function MainApp() {
                 {/* Feature 2: Stadium Scoreboard & Audio Umpire */}
                 <TouchableOpacity
                   style={styles.featureShowcaseCard}
-                  onPress={() => setCurrentPage('MATCH')}
+                  onPress={() => navigateToPage('MATCH')}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
@@ -894,7 +941,7 @@ function MainApp() {
                 {/* Feature 3: Serve & Rally Speed Radar */}
                 <TouchableOpacity
                   style={styles.featureShowcaseCard}
-                  onPress={() => setCurrentPage('MATCH')}
+                  onPress={() => navigateToPage('MATCH')}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
@@ -938,7 +985,7 @@ function MainApp() {
                 {/* Feature 5: AI Shot Classification & Court Heatmap (SwingVision) */}
                 <TouchableOpacity
                   style={[styles.featureShowcaseCard, { borderColor: '#00F59B' }]}
-                  onPress={() => setCurrentPage('STATS')}
+                  onPress={() => navigateToPage('STATS')}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(0, 245, 155, 0.15)' }]}>
@@ -960,7 +1007,7 @@ function MainApp() {
                 {/* Feature 6: Smart Auto-Trim & Match Highlights (SwingVision) */}
                 <TouchableOpacity
                   style={[styles.featureShowcaseCard, { borderColor: '#CCFF00' }]}
-                  onPress={() => setCurrentPage('HIGHLIGHTS')}
+                  onPress={() => navigateToPage('HIGHLIGHTS')}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.featureIconBadge, { backgroundColor: 'rgba(204, 255, 0, 0.15)' }]}>
@@ -1079,7 +1126,7 @@ function MainApp() {
                             style={styles.historyViewBtn}
                             onPress={() => {
                               setActiveMatchId(match.id);
-                              setCurrentPage('STATS');
+                              navigateToPage('STATS');
                             }}
                           >
                             <Text style={styles.historyViewText}>STATS</Text>
@@ -1621,7 +1668,7 @@ function MainApp() {
                   style={[styles.simActionBtn, { borderColor: THEME.colors.tennisVolt, backgroundColor: 'rgba(204, 255, 0, 0.15)' }]}
                   onPress={() => {
                     setReplayViewMode('ballZoom');
-                    setCurrentPage('REPLAY');
+                    navigateToPage('REPLAY');
                   }}
                   activeOpacity={0.8}
                 >
@@ -1652,7 +1699,7 @@ function MainApp() {
 
                 <TouchableOpacity
                   style={styles.hudQuickBtn}
-                  onPress={() => setCurrentPage('HIGHLIGHTS')}
+                  onPress={() => navigateToPage('HIGHLIGHTS')}
                   activeOpacity={0.8}
                 >
                   <Sparkles size={13} color="#CCFF00" />
@@ -1813,6 +1860,17 @@ function MainApp() {
           </ScrollView>
         )}
 
+        {/* ===================== SWINGVISION AI COACH SCREEN ===================== */}
+        {currentPage === 'COACH' && (
+          <View style={{ flex: 1 }}>
+            <SwingVisionCoachView
+              playerOneName={scoreState.playerOneName}
+              playerTwoName={scoreState.playerTwoName}
+              onNavigateToMatch={() => navigateToPage('MATCH')}
+            />
+          </View>
+        )}
+
         {/* ===================== HIGHLIGHTS SCREEN ===================== */}
         {currentPage === 'HIGHLIGHTS' && (
           <View style={{ flex: 1 }}>
@@ -1898,20 +1956,21 @@ function MainApp() {
 
             <TouchableOpacity
               style={styles.statsBackBtn}
-              onPress={() => setCurrentPage('MATCH')}
+              onPress={() => navigateToPage('MATCH')}
             >
               <Text style={styles.statsBackBtnText}>RESUME LIVE MATCH</Text>
             </TouchableOpacity>
           </ScrollView>
         )}
-      </View>
+      </Animated.View>
 
-      {/* Floating Glassmorphic Navigation Bar (6 Tabs) */}
+      {/* Floating Glassmorphic Navigation Bar (7 Tabs) */}
       <View style={[styles.footerContainer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         <View style={styles.footerGlass}>
           <TouchableOpacity
             style={[styles.footerTab, currentPage === 'HOME' && styles.footerTabActive]}
-            onPress={() => setCurrentPage('HOME')}
+            onPress={() => navigateToPage('HOME')}
+            activeOpacity={0.7}
           >
             <History size={16} color={currentPage === 'HOME' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
             <Text style={[styles.tabLabel, currentPage === 'HOME' && styles.tabLabelActive]}>Sessions</Text>
@@ -1919,7 +1978,8 @@ function MainApp() {
 
           <TouchableOpacity
             style={[styles.footerTab, currentPage === 'CALIBRATE' && styles.footerTabActive]}
-            onPress={() => setCurrentPage('CALIBRATE')}
+            onPress={() => navigateToPage('CALIBRATE')}
+            activeOpacity={0.7}
           >
             <Sliders size={16} color={currentPage === 'CALIBRATE' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
             <Text style={[styles.tabLabel, currentPage === 'CALIBRATE' && styles.tabLabelActive]}>Calibrate</Text>
@@ -1927,7 +1987,8 @@ function MainApp() {
 
           <TouchableOpacity
             style={[styles.footerTab, currentPage === 'MATCH' && styles.footerTabActive]}
-            onPress={() => setCurrentPage('MATCH')}
+            onPress={() => navigateToPage('MATCH')}
+            activeOpacity={0.7}
           >
             <Activity size={16} color={currentPage === 'MATCH' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
             <Text style={[styles.tabLabel, currentPage === 'MATCH' && styles.tabLabelActive]}>Live HUD</Text>
@@ -1935,15 +1996,26 @@ function MainApp() {
 
           <TouchableOpacity
             style={[styles.footerTab, currentPage === 'REPLAY' && styles.footerTabActive]}
-            onPress={() => setCurrentPage('REPLAY')}
+            onPress={() => navigateToPage('REPLAY')}
+            activeOpacity={0.7}
           >
             <ShieldAlert size={16} color={currentPage === 'REPLAY' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
             <Text style={[styles.tabLabel, currentPage === 'REPLAY' && styles.tabLabelActive]}>Hawk-Eye</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={[styles.footerTab, currentPage === 'COACH' && styles.footerTabActive]}
+            onPress={() => navigateToPage('COACH')}
+            activeOpacity={0.7}
+          >
+            <Award size={16} color={currentPage === 'COACH' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
+            <Text style={[styles.tabLabel, currentPage === 'COACH' && styles.tabLabelActive]}>Coach</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.footerTab, currentPage === 'HIGHLIGHTS' && styles.footerTabActive]}
-            onPress={() => setCurrentPage('HIGHLIGHTS')}
+            onPress={() => navigateToPage('HIGHLIGHTS')}
+            activeOpacity={0.7}
           >
             <Sparkles size={16} color={currentPage === 'HIGHLIGHTS' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
             <Text style={[styles.tabLabel, currentPage === 'HIGHLIGHTS' && styles.tabLabelActive]}>Reels</Text>
@@ -1951,7 +2023,8 @@ function MainApp() {
 
           <TouchableOpacity
             style={[styles.footerTab, currentPage === 'STATS' && styles.footerTabActive]}
-            onPress={() => setCurrentPage('STATS')}
+            onPress={() => navigateToPage('STATS')}
+            activeOpacity={0.7}
           >
             <TrendingUp size={16} color={currentPage === 'STATS' ? THEME.colors.tennisVolt : THEME.colors.textSecondary} />
             <Text style={[styles.tabLabel, currentPage === 'STATS' && styles.tabLabelActive]}>Heatmap</Text>

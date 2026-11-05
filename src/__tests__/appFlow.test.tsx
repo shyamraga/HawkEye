@@ -19,7 +19,7 @@ describe('App SwingVision Suite Integration', () => {
     jest.useRealTimers();
   });
 
-  test('renders full app with SwingVision 6-tab navigation and pro features', async () => {
+  test('renders full app with SwingVision 7-tab navigation and pro features', async () => {
     let renderer: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(<App />);
@@ -37,8 +37,35 @@ describe('App SwingVision Suite Integration', () => {
     expect(texts).toContain('Calibrate');
     expect(texts).toContain('Live HUD');
     expect(texts).toContain('Hawk-Eye');
+    expect(texts).toContain('Coach');
     expect(texts).toContain('Reels');
     expect(texts).toContain('Heatmap');
+  });
+
+  test('navigates to Coach tab and renders SwingVision AI Coach view', async () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<App />);
+    });
+
+    const touchables = renderer!.root.findAllByType(TouchableOpacity);
+    const coachTab = touchables.find(b => {
+      const texts = b.findAllByType(Text);
+      return texts.some(t => t.props.children === 'Coach');
+    });
+
+    expect(coachTab).toBeTruthy();
+
+    await act(async () => {
+      coachTab?.props.onPress();
+    });
+
+    const coachTexts = renderer!.root.findAllByType(Text).map(t => {
+      const child = t.props.children;
+      return Array.isArray(child) ? child.join('') : String(child);
+    });
+
+    expect(coachTexts).toContain('SWINGVISION AI COACH');
   });
 
   test('navigates to Highlights reels tab and renders auto-trim player', async () => {
